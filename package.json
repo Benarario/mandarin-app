@@ -1,0 +1,42 @@
+{
+  "name": "mandarin-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "icons": "node scripts/gen-icons.mjs",
+    "etl:download": "tsx scripts/etl/download.ts",
+    "etl:build": "tsx scripts/etl/build.ts",
+    "etl:load": "tsx scripts/etl/load.ts",
+    "etl": "npm run etl:download && npm run etl:build && npm run etl:load"
+  },
+  "dependencies": {
+    "@node-rs/jieba": "^2.0.1",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
+    "msedge-tts": "^2.0.6",
+    "next": "16.2.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
+    "ts-fsrs": "^5.4.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "sharp": "^0.35.2",
+    "tailwindcss": "^4",
+    "tsx": "^4.22.4",
+    "typescript": "^5",
+    "vitest": "^4.1.9"
+  }
+}

@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fffaf3; /* warm cream */
+  --foreground: #292524; /* stone-800 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Ruby (pinyin) styling for the reader and review cards. */
+ruby rt {
+  font-size: 0.6em;
+  color: #0f766e; /* teal-700 */
+  user-select: none;
+}
