@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
 
 /**
  * Refreshes the Supabase auth session on every request and keeps the auth
@@ -10,12 +11,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   // If Supabase isn't configured yet, do nothing (lets the app boot pre-setup).
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    return response;
-  }
+  if (!hasSupabaseEnv()) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -39,7 +35,11 @@ export async function updateSession(request: NextRequest) {
   );
 
   // Touch the user to trigger a token refresh when needed.
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch {
+    // Unreachable/invalid credentials must not break navigation.
+  }
 
   return response;
 }
