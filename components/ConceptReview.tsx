@@ -70,6 +70,7 @@ export default function ConceptReview({
   const chineseTokens = item.templateIndex === 0 ? item.frontTokens : item.backTokens;
   const chineseText = item.templateIndex === 0 ? item.front : item.back;
   const isProduction = item.templateIndex === 1;
+  const isPhoneme = item.conceptType === "phoneme";
 
   return (
     <main className="mx-auto flex max-w-xl flex-col px-6 py-6">
@@ -106,8 +107,21 @@ export default function ConceptReview({
         )}
 
         {/* Front */}
-        {item.conceptType === "phoneme" ? (
-          <p className="text-3xl font-semibold text-stone-900">{item.front}</p>
+        {isPhoneme ? (
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-3xl font-semibold text-stone-900">{item.front}</p>
+            {item.note && <p className="max-w-xs text-sm text-stone-600">{item.note}</p>}
+            {item.example && (
+              <div className="flex items-center gap-3 rounded-2xl bg-stone-50 px-4 py-2">
+                <span className="text-xs text-stone-400">e.g.</span>
+                <span className="text-3xl text-stone-900">{item.example}</span>
+                {item.examplePinyin && (
+                  <span className="text-lg font-medium text-teal-700">{item.examplePinyin}</span>
+                )}
+                <AudioButton text={item.example} />
+              </div>
+            )}
+          </div>
         ) : isProduction ? (
           <p className="text-2xl font-medium text-stone-800">{item.front}</p>
         ) : (
@@ -120,11 +134,9 @@ export default function ConceptReview({
         )}
 
         {/* Answer */}
-        {showAnswer && (
+        {showAnswer && !isPhoneme && (
           <div className="mt-5 w-full border-t border-dashed border-stone-200 pt-5">
-            {item.conceptType === "phoneme" ? (
-              <p className="text-base text-stone-700">{item.back || "—"}</p>
-            ) : isProduction ? (
+            {isProduction ? (
               <div className="flex items-center justify-center gap-3">
                 <div className="text-4xl text-stone-900">
                   {chineseTokens ? <PinyinText tokens={chineseTokens} mastery={mastery} mode={mode} /> : chineseText}
@@ -147,7 +159,7 @@ export default function ConceptReview({
 
       {/* controls */}
       <div className="mt-5">
-        {!showAnswer ? (
+        {!isPhoneme && !showAnswer ? (
           <button
             onClick={() => setShowAnswer(true)}
             className="w-full rounded-2xl bg-stone-800 py-4 text-lg font-semibold text-white hover:bg-stone-900"

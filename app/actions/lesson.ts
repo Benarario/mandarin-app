@@ -5,6 +5,7 @@ import { newCardFields } from "@/lib/srs/fsrs";
 import { nextConcepts, allowedVocabulary } from "@/lib/graph/gate";
 import { findUntaughtTokens } from "@/lib/graph/logic";
 import { segment } from "@/lib/segment/jieba";
+import { primaryGloss } from "@/lib/dict/gloss";
 import type { BreakdownPart, ConceptType } from "@/lib/db/concept-types";
 
 interface ConceptRow {
@@ -41,8 +42,8 @@ async function glossMap(supabase: ActionDb, table: "components" | "characters", 
   const map = new Map<string, string | null>();
   for (const r of (data ?? []) as Record<string, unknown>[]) {
     const key = r[col] as string;
-    const g = table === "components" ? (r.gloss as string | null) : ((r.glosses as string[])?.[0] ?? null);
-    map.set(key, g ?? null);
+    const g = table === "components" ? (r.gloss as string | null) : primaryGloss((r.glosses as string[]) ?? []);
+    map.set(key, g || null);
   }
   return map;
 }
@@ -73,6 +74,37 @@ async function pickGatedSentence(
   return null; // no fully-taught sentence yet — caller falls back to the word alone
 }
 
+// Tone pronunciation examples (the classic mā/má/mǎ/mà series) — used only as
+// illustration in Stage 0, before any character is formally taught (spec §7).
+const TONE_EXAMPLE: Record<string, { char: string; pinyin: string }> = {
+  tone1: { char: "妈", pinyin: "mā" },
+  tone2: { char: "麻", pinyin: "má" },
+  tone3: { char: "马", pinyin: "mǎ" },
+  tone4: { char: "骂", pinyin: "mà" },
+  tone5: { char: "吗", pinyin: "ma" },
+};
+const TONE_NOTE: Record<string, string> = {
+  tone1: "High and flat — hold a steady high pitch.",
+  tone2: "Rising — like asking “huh?”.",
+  tone3: "Dips low, then rises.",
+  tone4: "Sharp falling — like a firm “No!”.",
+  tone5: "Light and short, with no tone.",
+};
+
+function phonemeFields(ref: string, label: string): Record<string, unknown> {
+  if (ref.startsWith("tone") && TONE_EXAMPLE[ref]) {
+    const ex = TONE_EXAMPLE[ref];
+    return { label, note: TONE_NOTE[ref] ?? "", example: ex.char, example_pinyin: ex.pinyin };
+  }
+  if (ref.startsWith("initial_"))
+    return { label, note: "A starting sound (consonant) of a syllable.", example: "" };
+  if (ref.startsWith("final_"))
+    return { label, note: "A syllable ending (vowel sound).", example: "" };
+  if (ref.startsWith("pair_"))
+    return { label, note: "Practise the two tones together (3 + 3 becomes 2 + 3).", example: "" };
+  return { label, note: "", example: "" };
+}
+
 async function buildNote(
   supabase: ActionDb,
   userId: string,
@@ -80,10 +112,7 @@ async function buildNote(
 ): Promise<{ noteTypeId: string; fields: Record<string, unknown> }> {
   switch (concept.type) {
     case "phoneme":
-      return {
-        noteTypeId: "zh-phoneme",
-        fields: { label: concept.label, note: concept.gloss ?? "", example: "" },
-      };
+      return { noteTypeId: "zh-phoneme", fields: phonemeFields(concept.ref, concept.label) };
     case "component":
       return {
         noteTypeId: "zh-component",
@@ -103,7 +132,7 @@ async function buildNote(
         fields: {
           char: concept.ref,
           pinyin: ch?.pinyin ?? "",
-          english: (ch?.glosses as string[])?.[0] ?? concept.gloss ?? "",
+          english: primaryGloss((ch?.glosses as string[]) ?? []) || concept.gloss || "",
           components_json: breakdown,
         },
       };
@@ -123,9 +152,9 @@ async function buildNote(
         fields: {
           simplified: concept.ref,
           pinyin: w?.pinyin ?? "",
-          english: (w?.glosses as string[])?.[0] ?? concept.gloss ?? "",
+          english: primaryGloss((w?.glosses as string[]) ?? []) || concept.gloss || "",
           sentence_zh: sentence?.zh ?? concept.ref,
-          sentence_en: sentence?.en ?? ((w?.glosses as string[])?.[0] ?? ""),
+          sentence_en: sentence?.en ?? primaryGloss((w?.glosses as string[]) ?? []),
           audio_key: "",
           components_json: breakdown,
         },

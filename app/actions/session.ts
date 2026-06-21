@@ -39,7 +39,19 @@ function toItem(c: CardJoin): ConceptReviewItem | null {
   };
 
   if (type === "phoneme") {
-    return { ...base, front: String(f.label ?? ""), back: String(f.note ?? ""), pinyin: null, gloss: null, audioText: null, label: String(f.label ?? ""), note: (f.note as string) || null };
+    const example = (f.example as string) || null;
+    return {
+      ...base,
+      front: String(f.label ?? ""),
+      back: String(f.note ?? ""),
+      pinyin: null,
+      gloss: null,
+      audioText: example, // play the example character for tones
+      label: String(f.label ?? ""),
+      note: (f.note as string) || null,
+      example,
+      examplePinyin: (f.example_pinyin as string) || null,
+    };
   }
   if (type === "component") {
     return { ...base, front: String(f.char ?? ""), back: String(f.gloss ?? ""), pinyin: null, gloss: String(f.gloss ?? ""), audioText: String(f.char ?? ""), breakdown };

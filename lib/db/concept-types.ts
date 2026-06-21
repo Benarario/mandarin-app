@@ -30,4 +30,6 @@ export interface ConceptReviewItem {
   // Phoneme-only display.
   label?: string;
   note?: string | null;
+  example?: string | null; // example character to illustrate a tone
+  examplePinyin?: string | null;
 }

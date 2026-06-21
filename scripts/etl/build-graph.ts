@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { SOURCES, PATHS } from "./sources";
+import { chooseBestEntry, cleanGlosses } from "../../lib/dict/gloss";
 
 const RAW = PATHS.raw;
 const OUT = PATHS.out;
@@ -140,30 +141,35 @@ function main() {
   console.log("reading dictionary …");
   const dict = readDictionary();
 
-  // Best (most common) dictionary entry per simplified headword.
-  const bestEntry = new Map<string, DictRow>();
+  // Group all CC-CEDICT readings per headword, then pick the best entry
+  // (real definition over variant/surname) and clean its glosses.
+  const grouped = new Map<string, DictRow[]>();
   for (const d of dict) {
-    const prev = bestEntry.get(d.simplified);
-    const a = prev?.freq_rank ?? Number.MAX_SAFE_INTEGER;
-    const b = d.freq_rank ?? Number.MAX_SAFE_INTEGER;
-    if (!prev || b < a) bestEntry.set(d.simplified, d);
+    (grouped.get(d.simplified) ?? grouped.set(d.simplified, []).get(d.simplified)!).push(d);
   }
+  const bestEntry = new Map<string, DictRow>();
+  for (const [simp, entries] of grouped) bestEntry.set(simp, chooseBestEntry(entries) ?? entries[0]);
 
-  // ── Words: HSK-tagged multi-character entries (the teaching corpus) ──
-  const words = dict
-    .filter((d) => [...d.simplified].length > 1 && d.hsk_30_band != null && [...d.simplified].every(isCjkChar))
-    .map((d) => ({
-      simplified: d.simplified,
-      pinyin: d.pinyin,
-      glosses: d.glosses,
-      character_chars: [...d.simplified],
-      hsk_band: d.hsk_30_band,
-      freq_rank: d.freq_rank,
-      source: d.source,
-      license: d.license,
-    }));
-  // Dedup words by simplified.
-  const wordMap = new Map(words.map((w) => [w.simplified, w]));
+  // ── Words: HSK-tagged multi-character headwords (the teaching corpus) ──
+  const wordMap = new Map<string, {
+    simplified: string; pinyin: string; glosses: string[]; character_chars: string[];
+    hsk_band: number | null; freq_rank: number | null; source: string; license: string;
+  }>();
+  for (const [simp, entries] of grouped) {
+    if ([...simp].length <= 1 || ![...simp].every(isCjkChar)) continue;
+    const best = chooseBestEntry(entries) ?? entries[0];
+    if (best.hsk_30_band == null) continue;
+    wordMap.set(simp, {
+      simplified: simp,
+      pinyin: best.pinyin,
+      glosses: cleanGlosses(best.glosses),
+      character_chars: [...simp],
+      hsk_band: best.hsk_30_band,
+      freq_rank: best.freq_rank,
+      source: best.source,
+      license: best.license,
+    });
+  }
 
   // ── Characters: every single-char dict entry + any char inside a word ──
   const charSet = new Set<string>();
@@ -190,7 +196,7 @@ function main() {
     return {
       char,
       pinyin: d?.pinyin ?? null,
-      glosses: d?.glosses ?? [],
+      glosses: d ? cleanGlosses(d.glosses) : [],
       radical_number: radNum,
       radical_char: radNum != null ? radToChar.get(radNum) ?? null : null,
       stroke_count: strokes.get(char) ?? null,
