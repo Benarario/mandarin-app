@@ -12,7 +12,11 @@
     "etl:download": "tsx scripts/etl/download.ts",
     "etl:build": "tsx scripts/etl/build.ts",
     "etl:load": "tsx scripts/etl/load.ts",
-    "etl": "npm run etl:download && npm run etl:build && npm run etl:load"
+    "etl": "npm run etl:download && npm run etl:build && npm run etl:load",
+    "etl:graph:download": "tsx scripts/etl/download-graph.ts",
+    "etl:graph:build": "tsx scripts/etl/build-graph.ts",
+    "etl:graph:compile": "tsx scripts/etl/compile-graph.ts",
+    "etl:graph:load": "tsx scripts/etl/load-graph.ts"
   },
   "dependencies": {
     "@node-rs/jieba": "^2.0.1",

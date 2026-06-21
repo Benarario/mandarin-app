@@ -26,6 +26,38 @@ export const SOURCES = {
     license: "CC BY 2.0 FR (Tatoeba.org, via manythings.org)",
     homepage: "https://tatoeba.org/",
   },
+
+  // ── v2 concept-graph datasets (all permissive) ──
+  unihan: {
+    name: "Unihan Database (Unicode)",
+    url: "https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip",
+    license: "Unicode License (https://www.unicode.org/license.txt)",
+    homepage: "https://www.unicode.org/charts/unihan.html",
+    // Files we actually use out of the zip:
+    files: [
+      "Unihan_RadicalStrokeCounts.txt", // kRSUnicode
+      "Unihan_IRGSources.txt", // kTotalStrokes
+      "Unihan_DictionaryLikeData.txt", // kFrequency, kGradeLevel
+    ] as const,
+  },
+  cjkRadicals: {
+    name: "Unicode CJKRadicals.txt",
+    url: "https://www.unicode.org/Public/UCD/latest/ucd/CJKRadicals.txt",
+    license: "Unicode License (https://www.unicode.org/license.txt)",
+    homepage: "https://www.unicode.org/Public/UCD/latest/ucd/",
+  },
+  unicodeData: {
+    name: "Unicode UnicodeData.txt (Kangxi radical names)",
+    url: "https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt",
+    license: "Unicode License (https://www.unicode.org/license.txt)",
+    homepage: "https://www.unicode.org/Public/UCD/latest/ucd/",
+  },
+  cjkDecomp: {
+    name: "cjk-decomp (character decomposition)",
+    url: "https://raw.githubusercontent.com/amake/cjk-decomp/master/cjk-decomp.txt",
+    license: "Apache-2.0 (github.com/amake/cjk-decomp)",
+    homepage: "https://github.com/amake/cjk-decomp",
+  },
 } as const;
 
 export const PATHS = {
