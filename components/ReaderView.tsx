@@ -5,6 +5,7 @@ import PinyinText from "@/components/PinyinText";
 import AudioButton from "@/components/AudioButton";
 import ImageCard from "@/components/ImageCard";
 import { addWordToDeck, markKnown, mineSentence } from "@/app/actions/mine";
+import { FUNCTION_NOTES } from "@/lib/explain/context";
 import { isHan } from "@/lib/pinyin/fading";
 import type { AnnToken } from "@/lib/annotate";
 import type { DictionaryRow } from "@/lib/db/types";
@@ -32,6 +33,7 @@ export default function ReaderView({
   const mode = pinyinMode as PinyinMode;
   const [bilingual, setBilingual] = useState(true);
   const [word, setWord] = useState<string | null>(null);
+  const [sentenceMeaning, setSentenceMeaning] = useState<string | null>(null);
   const [entries, setEntries] = useState<DictionaryRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
@@ -70,8 +72,9 @@ export default function ReaderView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, charStatus, wordStatus, bump]);
 
-  async function openWord(w: string) {
+  async function openWord(w: string, lineIndex: number) {
     setWord(w);
+    setSentenceMeaning(english[lineIndex] ?? null);
     setEntries(null);
     setMsg("");
     setLoading(true);
@@ -100,6 +103,7 @@ export default function ReaderView({
   return (
     <main className="mx-auto max-w-xl px-6 py-6">
       <header className="mb-3">
+        <a href="/reader" className="text-xs text-stone-400 hover:text-stone-600">← Texts</a>
         <h1 className="text-2xl font-bold text-orange-900">{title}</h1>
         <p className="text-xs font-medium text-stone-500">{level} · tap any word</p>
       </header>
@@ -132,7 +136,7 @@ export default function ReaderView({
                 tokens={tokens}
                 mastery={charStatus}
                 mode={mode}
-                onWordTap={openWord}
+                onWordTap={(w) => openWord(w, i)}
                 colorFor={colorFor}
               />
               <button
@@ -201,6 +205,18 @@ export default function ReaderView({
                     </span>
                   )}
                 </div>
+
+                {/* Sentence-aware context (never explained in isolation) */}
+                {word && FUNCTION_NOTES[word] && (
+                  <p className="mt-2 rounded-lg bg-teal-50 px-2 py-1.5 text-xs text-teal-800">
+                    <span className="font-semibold">Usage:</span> {FUNCTION_NOTES[word]}
+                  </p>
+                )}
+                {sentenceMeaning && (
+                  <p className="mt-2 text-xs text-stone-500">
+                    <span className="font-semibold text-stone-600">In this sentence:</span> “{sentenceMeaning}”
+                  </p>
+                )}
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button onClick={add} className="rounded-xl bg-orange-600 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">
                     + Add to deck

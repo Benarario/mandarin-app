@@ -60,16 +60,16 @@ export default async function Home() {
       </Link>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <Link
-          href="/reader"
-          className="rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300"
-        >
+        <Link href="/reader" className="rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300">
           📖 Read
         </Link>
-        <Link
-          href="/dashboard"
-          className="rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300"
-        >
+        <Link href="/topics" className="rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300">
+          🗂️ Topics
+        </Link>
+        <Link href="/tones" className="rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300">
+          🎵 Tones
+        </Link>
+        <Link href="/dashboard" className="rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300">
           📊 Progress
         </Link>
       </div>
