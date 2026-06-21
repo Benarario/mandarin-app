@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/require-user";
 import { ensureColdStart, introduceConcept } from "@/app/actions/lesson";
 import { nextConcepts } from "@/lib/graph/gate";
 import { annotateMany, type AnnToken } from "@/lib/annotate";
+import { getCharStatusMap } from "@/lib/graph/mastery";
 import type { BreakdownPart, ConceptReviewItem, ConceptType } from "@/lib/db/concept-types";
 
 const startOfTodayIso = () => {
@@ -36,6 +37,7 @@ function toItem(c: CardJoin): ConceptReviewItem | null {
     modality: c.modality,
     templateIndex: c.template_index,
     isNew,
+    headword: c.concepts?.ref ?? null,
   };
 
   if (type === "phoneme") {
@@ -102,6 +104,12 @@ function interleave(items: ConceptReviewItem[]): ConceptReviewItem[] {
     }
   }
   return out;
+}
+
+/** Per-character mastery status map (for pinyin fading in the reader). */
+export async function getCharMastery(): Promise<Record<string, number>> {
+  const { supabase, user } = await requireUser();
+  return getCharStatusMap(supabase, user.id);
 }
 
 export async function getConceptSession(): Promise<{
@@ -179,14 +187,8 @@ export async function getConceptSession(): Promise<{
     else it.backTokens = tokens;
   });
 
-  // Per-character mastery for pinyin fading.
-  const { data: exp } = await supabase
-    .from("pinyin_exposure")
-    .select("character, mastery_score")
-    .eq("user_id", user.id);
-  const mastery: Record<string, number> = {};
-  for (const r of exp ?? [])
-    mastery[(r as { character: string }).character] = (r as { mastery_score: number }).mastery_score;
+  // Per-character mastery STATUS drives pinyin fading (fades only at status ≥ 4).
+  const mastery = await getCharStatusMap(supabase, user.id);
 
   return { items, mastery, pinyinMode: settings?.pinyin_mode ?? "adaptive", seeded: coldSeeded + topUp };
 }

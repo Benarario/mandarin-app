@@ -11,10 +11,12 @@ interface Props {
   /** If provided, tapping a word calls this (e.g. open a definition popup)
    *  instead of toggling its pinyin. */
   onWordTap?: (word: string) => void;
+  /** Optional per-word CSS classes (e.g. mastery-status colour in the reader). */
+  colorFor?: (word: string) => string;
   className?: string;
 }
 
-export default function PinyinText({ tokens, mastery, mode, onWordTap, className }: Props) {
+export default function PinyinText({ tokens, mastery, mode, onWordTap, colorFor, className }: Props) {
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
 
   function toggleReveal(key: string) {
@@ -44,7 +46,7 @@ export default function PinyinText({ tokens, mastery, mode, onWordTap, className
           <span
             key={ti}
             onClick={handleWord}
-            className={onWordTap ? "cursor-pointer rounded hover:bg-orange-100" : ""}
+            className={`${onWordTap ? "cursor-pointer rounded hover:bg-orange-100" : ""} ${colorFor?.(tok.text) ?? ""}`}
           >
             {chars.map((ch, ci) => {
               if (!isHan(ch)) return <span key={ci}>{ch}</span>;

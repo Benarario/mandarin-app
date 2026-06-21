@@ -21,6 +21,7 @@ export interface ConceptReviewItem {
   frontTokens?: AnnToken[]; // annotated pinyin for the Chinese side
   backTokens?: AnnToken[];
 
+  headword: string | null; // the concept's character/word (for the picture)
   pinyin: string | null;
   gloss: string | null;
   audioText: string | null; // Chinese text to speak, if any

@@ -8,6 +8,8 @@ import type { PinyinMode } from "@/lib/pinyin/fading";
 import type { ConceptReviewItem } from "@/lib/db/concept-types";
 import PinyinText from "@/components/PinyinText";
 import AudioButton from "@/components/AudioButton";
+import ImageCard from "@/components/ImageCard";
+import { visualFor } from "@/lib/visuals/emoji";
 
 const BUTTONS: { rating: RatingValue; label: string; cls: string }[] = [
   { rating: RATING.again, label: "Again", cls: "bg-red-100 text-red-700 hover:bg-red-200" },
@@ -91,14 +93,20 @@ export default function ConceptReview({
       </div>
 
       <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-3xl border border-stone-200 bg-white p-6 text-center shadow-sm">
-        {/* New-concept teaching banner */}
+        {/* Dual-coded picture for a new concrete concept */}
+        {item.isNew && item.headword && visualFor(item.headword) && (
+          <ImageCard text={item.headword} />
+        )}
+
+        {/* New-concept teaching banner with emoji-composed mnemonic */}
         {item.isNew && item.breakdown && item.breakdown.length > 0 && (
-          <div className="mb-4 w-full rounded-2xl bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="my-3 w-full rounded-2xl bg-amber-50 p-3 text-sm text-amber-900">
             <span className="font-semibold">New {TYPE_LABEL[item.conceptType].toLowerCase()}.</span>{" "}
             Built from:{" "}
             {item.breakdown.map((p, i) => (
               <span key={i}>
                 {i > 0 && " + "}
+                {visualFor(p.text) && <span className="mr-0.5">{visualFor(p.text)}</span>}
                 <span className="font-semibold">{p.text}</span>
                 {p.gloss ? ` (${p.gloss})` : ""}
               </span>

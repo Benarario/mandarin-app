@@ -4,8 +4,12 @@
 
 export type PinyinMode = "full" | "on_tap" | "new_only" | "none" | "adaptive";
 
-// Mastery score crosses this threshold => character is "known" enough to hide.
-export const MASTERY_HIDE_THRESHOLD = 3;
+// A character's pinyin may only fade once THAT character is mastered.
+// `mastery` here is the per-character concept status (0–5); 4 = familiar.
+// This is the fix for "dropped pinyin too fast": pinyin stays visible until the
+// learner has genuinely mastered the character, and re-appears if mastery drops.
+export const STATUS_MASTERED = 4;
+export const STATUS_STRONG = 5;
 
 export interface PinyinDecision {
   /** Show pinyin above the character by default? */
@@ -15,13 +19,14 @@ export interface PinyinDecision {
 }
 
 /**
- * @param mode      the user's pinyin display preference
- * @param mastery   per-character mastery score (0 if unseen); undefined = unknown
+ * @param mode    the user's pinyin display preference
+ * @param mastery the character's mastery STATUS (0–5); undefined = never seen
  */
 export function decidePinyin(
   mode: PinyinMode,
   mastery: number | undefined,
 ): PinyinDecision {
+  const status = mastery ?? 0;
   switch (mode) {
     case "full":
       return { show: true, tappable: true };
@@ -30,11 +35,13 @@ export function decidePinyin(
     case "on_tap":
       return { show: false, tappable: true };
     case "new_only":
-      return { show: (mastery ?? 0) < MASTERY_HIDE_THRESHOLD, tappable: true };
+      // Show until the character is familiar (status ≥ 4).
+      return { show: status < STATUS_MASTERED, tappable: true };
     case "adaptive":
     default:
-      // Hide once the character is mastered; re-show if mastery is low again.
-      return { show: (mastery ?? 0) < MASTERY_HIDE_THRESHOLD, tappable: true };
+      // Never hide below "familiar" (status 4); fully drop once "strong" (5).
+      // Always tappable so it can be revealed — and re-appears if mastery drops.
+      return { show: status < STATUS_MASTERED, tappable: true };
   }
 }
 

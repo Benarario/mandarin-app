@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser, type ActionDb } from "@/lib/require-user";
+import { getDefaultDeckId } from "@/lib/decks";
 import { newCardFields } from "@/lib/srs/fsrs";
 import { nextConcepts, allowedVocabulary } from "@/lib/graph/gate";
 import { findUntaughtTokens } from "@/lib/graph/logic";
@@ -15,22 +16,6 @@ interface ConceptRow {
   label: string;
   gloss: string | null;
   prereq_ids: string[];
-}
-
-async function getDefaultDeckId(supabase: ActionDb, userId: string): Promise<string> {
-  const { data } = await supabase
-    .from("decks")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("name", "Mandarin")
-    .maybeSingle();
-  if (data?.id) return data.id as string;
-  const { data: created } = await supabase
-    .from("decks")
-    .insert({ user_id: userId, name: "Mandarin" })
-    .select("id")
-    .single();
-  return created!.id as string;
 }
 
 /** Glosses for a set of components/characters, for the breakdown display. */
