@@ -50,7 +50,10 @@ The curriculum is a DAG of ~20k concepts in the `concepts` table: `phoneme → c
 Mirrors Anki: `notes` (content) are separate from `cards` (scheduled items) with a `revlog`. Concept cards link via `cards.concept_id`. **Migrations in `supabase/migrations/` are additive and applied manually by the user in the Supabase SQL Editor — never edit an applied migration; add a new numbered one.** (0001 init, 0002 concept graph, 0003 concept cards.) Loaders bypass RLS via the service-role key.
 
 ### Server actions
-All study logic is server actions in `app/actions/` (`lesson`, `session`, `review`, `mine`, `topics`, `drills`). Each re-derives the user via `lib/require-user` (`requireUser`) and trusts nothing from the client. `getConceptSession` cold-starts a new account at phonology, tops up new concepts via `nextConcepts` (gated), and interleaves card types. `introduceConcept` creates the note + card(s) + `concept_progress` row with the breakdown.
+All study logic is server actions in `app/actions/` (`lesson`, `session`, `review`, `mine`, `topics`, `drills`, `progress`). Each re-derives the user via `lib/require-user` (`requireUser`) and trusts nothing from the client. `getConceptSession` cold-starts a new account at phonology, tops up new concepts via `nextConcepts` (gated), and interleaves card types. `introduceConcept` creates the note + card(s) + `concept_progress` row with the breakdown. `progress.getSkillStats` feeds the dashboard from real mastery (mastered char/word counts + HSK band from mastered words), not an XP heuristic.
+
+### Teaching content that is authored vs. sourced
+Sourced (from data): definitions, pinyin, tones, decomposition, HSK/frequency, example sentences. Authored (curated, allowed because they aren't word-facts): function-word usage notes (`lib/explain/context.ts`), topic membership (`lib/topics.ts`), emoji picture-words (`lib/visuals/emoji.ts` — public-domain pictographs), and the short reader passages (`lib/seed/reader.ts`, labelled illustrative). The reader's tap sheet shows the whole-sentence meaning + a usage note so words are never explained in isolation. Tone-pair example words (`/tones`) are pulled from CC-CEDICT so tones are never invented.
 
 ### Conventions & gotchas
 - **PWA is hand-written** (`public/sw.js` + `app/manifest.ts`), not Serwist — Serwist needs webpack and conflicts with Next 16's Turbopack build.
@@ -59,3 +62,5 @@ All study logic is server actions in `app/actions/` (`lesson`, `session`, `revie
 - `lib/supabase/env.ts` `hasSupabaseEnv()` treats blank/`REPLACE_ME` values as unconfigured so the app boots into a setup screen instead of crashing.
 - Visuals use Unicode emoji (`lib/visuals/emoji.ts`) — public-domain pictographs, zero licensing/storage.
 - TTS is behind a provider interface (`lib/tts/`): edge-tts in dev, Azure later.
+- FSRS parameter re-optimization is intentionally deferred: `ts-fsrs` ships no optimizer, but every review is logged to `revlog` (the data a future optimizer needs is already captured).
+- New screens: `/reader` is a text picker (or the reader when `?id=` is set), `/topics`, `/tones` (pitch diagrams). Home links them.
