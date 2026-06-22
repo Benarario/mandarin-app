@@ -3,7 +3,7 @@
  * Provides offline support for the app shell, dictionary lookups and audio,
  * which is what makes reviews usable without a signal. */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `shell-${VERSION}`;
 const ASSET_CACHE = `assets-${VERSION}`;
 const DICT_CACHE = `dict-${VERSION}`;

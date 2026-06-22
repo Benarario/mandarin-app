@@ -10,6 +10,18 @@ const SOURCES = [
     url: "https://www.mdbg.net/chinese/dictionary?page=cc-cedict",
   },
   {
+    name: "Unihan (Unicode)",
+    role: "Radicals, stroke counts and the 214 components",
+    license: "Unicode License",
+    url: "https://www.unicode.org/charts/unihan.html",
+  },
+  {
+    name: "cjk-decomp",
+    role: "Character decomposition (好 = 女 + 子)",
+    license: "Apache-2.0",
+    url: "https://github.com/amake/cjk-decomp",
+  },
+  {
     name: "complete-hsk-vocabulary",
     role: "HSK 3.0 / 2.0 level tags and word-frequency ordering",
     license: "see repository",
@@ -53,8 +65,18 @@ export default function TrustPage() {
       <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
         <p className="font-semibold">The verification gate</p>
         <p className="mt-1">
-          A card can only enter normal study once its Chinese validates against CC-CEDICT. If a
-          word isn&apos;t in the dictionary, it&apos;s marked unverified and never taught as fact.
+          A card can only enter study once its Chinese validates against CC-CEDICT. If a word
+          isn&apos;t in the dictionary, it&apos;s marked unverified and never taught as fact.
+        </p>
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
+        <p className="font-semibold">Never taught out of order</p>
+        <p className="mt-1">
+          Everything is arranged as a prerequisite graph — sounds, then character components, then
+          characters, then words. You are <strong>never shown, quizzed, or asked about anything
+          before you&apos;ve learned what it&apos;s built from</strong>. Each character only appears
+          after its components are mastered, and each word only after its characters.
         </p>
       </div>
 
