@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import type { SkillStat } from "@/app/actions/progress";
 
@@ -36,6 +37,14 @@ export default function SkillDashboard({
           <div className="mt-1 text-xs font-medium text-stone-500">words mastered</div>
         </div>
       </div>
+
+      <Link
+        href="/dashboard/mastered"
+        className="mt-3 flex items-center justify-between rounded-2xl border border-stone-200 bg-white p-4 font-semibold text-stone-700 hover:bg-stone-50"
+      >
+        <span>📚 View mastered characters &amp; words</span>
+        <span aria-hidden className="text-stone-400">→</span>
+      </Link>
 
       <div className="mt-4 grid gap-4">
         {stats.map((s) => {

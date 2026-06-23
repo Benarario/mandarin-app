@@ -147,7 +147,7 @@ export default function ConceptReview({
             {isProduction ? (
               <div className="flex items-center justify-center gap-3">
                 <div className="text-4xl text-stone-900">
-                  {chineseTokens ? <PinyinText tokens={chineseTokens} mastery={mastery} mode={mode} /> : chineseText}
+                  {chineseTokens ? <PinyinText tokens={chineseTokens} mastery={mastery} mode={mode} glossHint /> : chineseText}
                 </div>
                 {item.audioText && <AudioButton text={item.audioText} />}
               </div>

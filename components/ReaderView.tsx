@@ -38,6 +38,7 @@ export default function ReaderView({
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [bump, setBump] = useState(0); // re-render after status changes
+  const [grading, setGrading] = useState(false); // graded "I know this" picker open?
 
   // Status of a token: word status if known, else derived from its characters.
   function tokenStatus(text: string): number | null {
@@ -52,11 +53,14 @@ export default function ReaderView({
 
   function colorFor(text: string): string {
     const s = tokenStatus(text);
-    if (s === null) return "";
-    if (s >= 5) return "text-emerald-700";
-    if (s >= 4) return "text-stone-900";
-    if (s >= 1) return "text-amber-600";
-    return "text-orange-600 underline decoration-dotted decoration-orange-300 underline-offset-4";
+    if (s === null) return ""; // non-Chinese: not a tappable word
+    // Every word stays tappable to open its meaning; a faint dotted underline in
+    // the word's status colour makes that discoverable without un-fading pinyin.
+    const tap = "underline decoration-dotted underline-offset-4";
+    if (s >= 5) return `text-emerald-700 ${tap} decoration-emerald-200`;
+    if (s >= 4) return `text-stone-900 ${tap} decoration-stone-300`;
+    if (s >= 1) return `text-amber-600 ${tap} decoration-amber-300`;
+    return `text-orange-600 ${tap} decoration-orange-300`;
   }
 
   const coverage = useMemo(() => {
@@ -77,6 +81,7 @@ export default function ReaderView({
     setSentenceMeaning(english[lineIndex] ?? null);
     setEntries(null);
     setMsg("");
+    setGrading(false);
     setLoading(true);
     try {
       const res = await fetch(`/api/dict?w=${encodeURIComponent(w)}`);
@@ -93,11 +98,19 @@ export default function ReaderView({
     const r = await addWordToDeck(word);
     setMsg(r.added > 0 ? `Added ${r.added} to your deck ✓` : `Not added: ${r.reason}`);
   }
-  async function know() {
+  // Graded self-assessment levels (mapped to concept_progress.status).
+  const KNOW_LEVELS: { status: number; label: string; cls: string }[] = [
+    { status: 2, label: "Still learning it", cls: "bg-amber-100 text-amber-700 hover:bg-amber-200" },
+    { status: 4, label: "I know it", cls: "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" },
+    { status: 5, label: "I know it well", cls: "bg-teal-100 text-teal-700 hover:bg-teal-200" },
+  ];
+
+  async function grade(level: { status: number; label: string }) {
     if (!word) return;
-    await markKnown(word);
-    setMsg("Marked as known ✓");
-    setBump((b) => b + 1);
+    setGrading(false);
+    const r = await markKnown(word, level.status);
+    setMsg(r.ok ? `Marked: ${level.label} ✓` : "Could not mark this word");
+    if (r.ok) setBump((b) => b + 1);
   }
 
   return (
@@ -221,10 +234,35 @@ export default function ReaderView({
                   <button onClick={add} className="rounded-xl bg-orange-600 py-2.5 text-sm font-semibold text-white hover:bg-orange-700">
                     + Add to deck
                   </button>
-                  <button onClick={know} className="rounded-xl border border-stone-300 py-2.5 text-sm font-medium text-stone-600 hover:bg-stone-50">
+                  <button
+                    onClick={() => setGrading((g) => !g)}
+                    className={`rounded-xl border py-2.5 text-sm font-medium ${
+                      grading
+                        ? "border-stone-400 bg-stone-100 text-stone-700"
+                        : "border-stone-300 text-stone-600 hover:bg-stone-50"
+                    }`}
+                  >
                     I know this
                   </button>
                 </div>
+
+                {/* Graded self-assessment — choose how well you know it. */}
+                {grading && (
+                  <div className="mt-2">
+                    <p className="mb-1.5 text-center text-xs text-stone-400">How well do you know it?</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {KNOW_LEVELS.map((lvl) => (
+                        <button
+                          key={lvl.status}
+                          onClick={() => grade(lvl)}
+                          className={`rounded-xl py-2.5 text-sm font-semibold transition ${lvl.cls}`}
+                        >
+                          {lvl.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

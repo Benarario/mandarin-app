@@ -108,7 +108,7 @@ export default function ReviewSession({
             {chineseFront ? (
               <p className="text-lg text-stone-700">{item.back}</p>
             ) : (
-              <ChineseBlock tokens={chineseTokens} text={chineseText} mastery={mastery} mode={mode} />
+              <ChineseBlock tokens={chineseTokens} text={chineseText} mastery={mastery} mode={mode} glossHint />
             )}
             <div className="mt-3 text-sm text-stone-500">
               <span className="font-medium text-teal-700">{item.targetPinyin}</span> ·{" "}
@@ -151,17 +151,19 @@ function ChineseBlock({
   text,
   mastery,
   mode,
+  glossHint,
 }: {
   tokens?: ReviewItem["frontTokens"];
   text: string;
   mastery: Record<string, number>;
   mode: PinyinMode;
+  glossHint?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3">
       <div className="text-4xl leading-relaxed text-stone-900">
         {tokens ? (
-          <PinyinText tokens={tokens} mastery={mastery} mode={mode} />
+          <PinyinText tokens={tokens} mastery={mastery} mode={mode} glossHint={glossHint} />
         ) : (
           text
         )}

@@ -40,8 +40,17 @@ export async function addWordToDeck(token: string): Promise<{ added: number; rea
   return { added, reason: added === 0 ? "already in your deck" : undefined };
 }
 
-/** Self-assessment from the reader: mark a word (and its characters) as known. */
-export async function markKnown(token: string): Promise<{ ok: boolean }> {
+// Graded self-assessment levels the reader may set. 2 = still learning (not
+// mastered, pinyin stays, dependents stay locked); 4 = familiar (mastered for
+// gating, pinyin fades); 5 = strong. All are reversible.
+const KNOWN_STATUSES = new Set([2, 4, 5]);
+
+/**
+ * Self-assessment from the reader: mark a word (and its characters) at a chosen
+ * mastery level. `status` must be one of the allowed graded values.
+ */
+export async function markKnown(token: string, status: number): Promise<{ ok: boolean }> {
+  if (!KNOWN_STATUSES.has(status)) return { ok: false };
   const { supabase, user } = await requireUser();
   const ids = [`word:${token}`, ...[...token].filter((c) => HAN.test(c)).map((c) => `char:${c}`)];
   const { data: existing } = await supabase.from("concepts").select("id").in("id", ids);
@@ -49,7 +58,7 @@ export async function markKnown(token: string): Promise<{ ok: boolean }> {
   if (valid.length === 0) return { ok: false };
   const now = new Date().toISOString();
   await supabase.from("concept_progress").upsert(
-    valid.map((concept_id) => ({ user_id: user.id, concept_id, status: 5, introduced_at: now, updated_at: now })),
+    valid.map((concept_id) => ({ user_id: user.id, concept_id, status, introduced_at: now, updated_at: now })),
     { onConflict: "user_id,concept_id" },
   );
   return { ok: true };

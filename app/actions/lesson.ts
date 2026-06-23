@@ -7,6 +7,7 @@ import { nextConcepts, allowedVocabulary } from "@/lib/graph/gate";
 import { findUntaughtTokens } from "@/lib/graph/logic";
 import { segment } from "@/lib/segment/jieba";
 import { primaryGloss } from "@/lib/dict/gloss";
+import { parseSyllable } from "@/lib/pinyin/syllable";
 import type { BreakdownPart, ConceptType } from "@/lib/db/concept-types";
 
 interface ConceptRow {
@@ -76,15 +77,80 @@ const TONE_NOTE: Record<string, string> = {
   tone5: "Light and short, with no tone.",
 };
 
-function phonemeFields(ref: string, label: string): Record<string, unknown> {
+interface PhonemeExample {
+  char: string; // a real word/character that features the sound
+  pinyin: string; // its verified diacritic pinyin
+}
+
+// One real example word per initial/final, keyed by the phoneme ref
+// (e.g. "initial_b", "final_ang"). Built once per server process from the most
+// frequent dictionary entries — never invented — so every sound is illustrated
+// the same way tones are. Single characters are preferred (clearest); a short
+// common word fills in for sounds that have no common standalone character.
+let phonemeExampleCache: Promise<Record<string, PhonemeExample>> | null = null;
+
+async function buildPhonemeExampleMap(supabase: ActionDb): Promise<Record<string, PhonemeExample>> {
+  const { data } = await supabase
+    .from("dictionary")
+    .select("simplified, pinyin, pinyin_numbered, freq_rank")
+    .not("freq_rank", "is", null)
+    .order("freq_rank", { ascending: true, nullsFirst: false })
+    .limit(8000);
+
+  const rows = (data ?? []) as { simplified: string; pinyin: string; pinyin_numbered: string }[];
+  const map: Record<string, PhonemeExample> = {};
+
+  const consider = (r: { simplified: string; pinyin: string; pinyin_numbered: string }) => {
+    const chars = [...r.simplified];
+    const syls = r.pinyin_numbered.trim().split(/\s+/);
+    if (chars.length !== syls.length) return; // skip entries we can't align
+    // Skip proper-noun / surname readings (capitalised in CC-CEDICT) so the
+    // illustrative reading is a clean common word, e.g. "néng" not "Néng".
+    if (r.pinyin && r.pinyin[0] !== r.pinyin[0].toLowerCase()) return;
+    for (const syl of syls) {
+      const parsed = parseSyllable(syl);
+      if (!parsed) continue;
+      if (parsed.initial) {
+        const k = `initial_${parsed.initial}`;
+        if (!map[k]) map[k] = { char: r.simplified, pinyin: r.pinyin };
+      }
+      const fk = `final_${parsed.final}`;
+      if (!map[fk]) map[fk] = { char: r.simplified, pinyin: r.pinyin };
+    }
+  };
+
+  // Pass 1: single characters (the clearest illustration of a sound).
+  for (const r of rows) if ([...r.simplified].length === 1) consider(r);
+  // Pass 2: short words fill any sound still without an example.
+  for (const r of rows) if ([...r.simplified].length === 2) consider(r);
+
+  return map;
+}
+
+function getPhonemeExampleMap(supabase: ActionDb): Promise<Record<string, PhonemeExample>> {
+  if (!phonemeExampleCache) phonemeExampleCache = buildPhonemeExampleMap(supabase);
+  return phonemeExampleCache;
+}
+
+async function phonemeFields(
+  supabase: ActionDb,
+  ref: string,
+  label: string,
+): Promise<Record<string, unknown>> {
   if (ref.startsWith("tone") && TONE_EXAMPLE[ref]) {
     const ex = TONE_EXAMPLE[ref];
     return { label, note: TONE_NOTE[ref] ?? "", example: ex.char, example_pinyin: ex.pinyin };
   }
-  if (ref.startsWith("initial_"))
-    return { label, note: "A starting sound (consonant) of a syllable.", example: "" };
-  if (ref.startsWith("final_"))
-    return { label, note: "A syllable ending (vowel sound).", example: "" };
+  if (ref.startsWith("initial_") || ref.startsWith("final_")) {
+    const note = ref.startsWith("initial_")
+      ? "A starting sound (consonant) of a syllable."
+      : "A syllable ending (vowel sound).";
+    // Attach a real example word (with audio) for this sound, if one exists.
+    const ex = (await getPhonemeExampleMap(supabase))[ref];
+    return ex
+      ? { label, note, example: ex.char, example_pinyin: ex.pinyin }
+      : { label, note, example: "" };
+  }
   if (ref.startsWith("pair_"))
     return { label, note: "Practise the two tones together (3 + 3 becomes 2 + 3).", example: "" };
   return { label, note: "", example: "" };
@@ -97,7 +163,7 @@ async function buildNote(
 ): Promise<{ noteTypeId: string; fields: Record<string, unknown> }> {
   switch (concept.type) {
     case "phoneme":
-      return { noteTypeId: "zh-phoneme", fields: phonemeFields(concept.ref, concept.label) };
+      return { noteTypeId: "zh-phoneme", fields: await phonemeFields(supabase, concept.ref, concept.label) };
     case "component":
       return {
         noteTypeId: "zh-component",
