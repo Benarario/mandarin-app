@@ -6,6 +6,7 @@ import { annotateMany } from "@/lib/annotate";
 import { segment } from "@/lib/segment/jieba";
 import { getStatusMaps } from "@/lib/graph/mastery";
 import { SEED_TEXTS, getSeedText } from "@/lib/seed/reader";
+import { getGlobalReaderTexts, getReaderText, type ReaderText } from "@/lib/reader/texts";
 import { isHan } from "@/lib/pinyin/fading";
 import ReaderView from "@/components/ReaderView";
 
@@ -42,12 +43,19 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
 
   const status = await getStatusMaps(supabase, user.id);
 
+  // Graded reader texts from Tatoeba (global DB rows); seed texts as a fallback
+  // so the reader still works before the ETL has been run.
+  const dbTexts = await getGlobalReaderTexts(supabase);
+  const library: ReaderText[] = dbTexts.length ? dbTexts : SEED_TEXTS;
+
   // ── No text chosen → the picker (spec §13) ──
   if (!id) {
-    const items = SEED_TEXTS.map((t) => ({
-      t,
-      coverage: coverageOf(t.lines.map((l) => l.zh), status.char, status.word),
-    })).sort((a, b) => b.coverage - a.coverage);
+    const items = library
+      .map((t) => ({
+        t,
+        coverage: coverageOf(t.lines.map((l) => l.zh), status.char, status.word),
+      }))
+      .sort((a, b) => b.coverage - a.coverage);
 
     return (
       <main className="mx-auto max-w-xl px-6 py-8">
@@ -85,7 +93,7 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
   }
 
   // ── A text is chosen → the reader ──
-  const text = getSeedText(id) ?? SEED_TEXTS[0];
+  const text = (await getReaderText(supabase, id)) ?? getSeedText(id) ?? library[0] ?? SEED_TEXTS[0];
   const [lines, settingsRow] = await Promise.all([
     annotateMany(text.lines.map((l) => l.zh)),
     supabase.from("user_settings").select("pinyin_mode").eq("user_id", user.id).maybeSingle(),

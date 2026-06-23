@@ -16,7 +16,8 @@
     "etl:graph:download": "tsx scripts/etl/download-graph.ts",
     "etl:graph:build": "tsx scripts/etl/build-graph.ts",
     "etl:graph:compile": "tsx scripts/etl/compile-graph.ts",
-    "etl:graph:load": "tsx scripts/etl/load-graph.ts"
+    "etl:graph:load": "tsx scripts/etl/load-graph.ts",
+    "etl:reader": "tsx scripts/etl/build-reader.ts"
   },
   "dependencies": {
     "@node-rs/jieba": "^2.0.1",
