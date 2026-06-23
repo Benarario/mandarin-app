@@ -72,6 +72,9 @@ export default async function Home() {
         <Link href="/dashboard" className="rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300">
           📊 Progress
         </Link>
+        <Link href="/import" className="col-span-2 rounded-2xl border border-stone-200 bg-white p-4 text-center font-medium hover:border-orange-300">
+          ⬆️ Import cards
+        </Link>
       </div>
       <TrustLink />
     </main>
