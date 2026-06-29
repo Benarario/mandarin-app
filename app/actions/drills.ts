@@ -3,6 +3,7 @@
 import { requireUser } from "@/lib/require-user";
 import { primaryGloss } from "@/lib/dict/gloss";
 import { allowedVocabulary } from "@/lib/graph/gate";
+import { confusionPairs } from "@/lib/graph/interference";
 import { parseSyllable } from "@/lib/pinyin/syllable";
 
 const HAN = /\p{Script=Han}/u;
@@ -128,4 +129,45 @@ export async function getToneDrills(): Promise<{ whichTone: ToneWord[]; pairs: T
   }
 
   return { whichTone, pairs };
+}
+
+export interface ConfusionItem {
+  char: string;
+  pinyin: string;
+  gloss: string;
+}
+
+/**
+ * Visually-confusable pairs among the learner's TAUGHT characters — flagged for
+ * deliberate contrast practice (compare the look-alikes side by side). Pairs are
+ * derived from the component graph; pinyin/gloss come from CC-CEDICT.
+ */
+export async function getConfusionPairs(): Promise<{ a: ConfusionItem; b: ConfusionItem }[]> {
+  const { supabase, user } = await requireUser();
+  const { data } = await supabase
+    .from("concept_progress")
+    .select("concepts(ref, type, prereq_ids)")
+    .eq("user_id", user.id)
+    .gte("status", 1);
+
+  type Joined = { concepts: { ref: string; type: string; prereq_ids: string[] } | { ref: string; type: string; prereq_ids: string[] }[] | null };
+  const chars: { ref: string; prereq_ids: string[] }[] = [];
+  for (const row of (data ?? []) as unknown as Joined[]) {
+    const c = Array.isArray(row.concepts) ? row.concepts[0] : row.concepts;
+    if (c?.type === "character") chars.push({ ref: c.ref, prereq_ids: c.prereq_ids ?? [] });
+  }
+
+  const pairs = confusionPairs(chars).slice(0, 24);
+  if (pairs.length === 0) return [];
+
+  const refs = [...new Set(pairs.flatMap(([a, b]) => [a.ref, b.ref]))];
+  const { data: crows } = await supabase.from("characters").select("char, pinyin, glosses").in("char", refs);
+  const facts = new Map(
+    ((crows ?? []) as { char: string; pinyin: string | null; glosses: string[] }[]).map((r) => [
+      r.char,
+      { char: r.char, pinyin: r.pinyin ?? "", gloss: primaryGloss(r.glosses ?? []) },
+    ]),
+  );
+  const item = (ref: string): ConfusionItem => facts.get(ref) ?? { char: ref, pinyin: "", gloss: "" };
+  return pairs.map(([a, b]) => ({ a: item(a.ref), b: item(b.ref) }));
 }

@@ -3,6 +3,7 @@
 import { requireUser } from "@/lib/require-user";
 import { ensureColdStart, introduceConcept } from "@/app/actions/lesson";
 import { nextConcepts } from "@/lib/graph/gate";
+import { selectNonInterfering } from "@/lib/graph/interference";
 import { annotateMany, type AnnToken } from "@/lib/annotate";
 import { getCharStatusMap } from "@/lib/graph/mastery";
 import { timed } from "@/lib/perf/timing";
@@ -139,8 +140,13 @@ export async function getConceptSession(): Promise<{
   const budget = Math.max(0, dailyNew - (introducedToday ?? 0));
   let topUp = 0;
   if (budget > 0) {
-    const next = await timed("session.nextConcepts", () => nextConcepts(user.id, budget));
-    for (const c of next) {
+    // Pull a wider gated frontier, then introduce a non-interfering subset so we
+    // never teach two visually-confusable characters in the same session. Only
+    // gated/unlocked concepts are ever introduced; deferred ones wait for a
+    // later session (they remain the next-in-order frontier).
+    const candidates = await timed("session.nextConcepts", () => nextConcepts(user.id, budget * 3));
+    const { chosen } = selectNonInterfering(candidates, budget);
+    for (const c of chosen) {
       if ((await introduceConcept(c.id)).introduced) topUp++;
     }
   }

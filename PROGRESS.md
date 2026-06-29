@@ -322,3 +322,41 @@ using existing edge-tts audio + CC-CEDICT words. No Azure. Wired into `/tones`.
 with the existing non-gated tone examples on `/tones`); if you want *strictly* taught-only words,
 say so and I'll drop the seed. Drill clips for taught words may need one on-demand synth before
 they're CDN-cached.
+
+## P3 — Interference-aware scheduling
+
+**Goal:** when `getConceptSession` tops up new concepts, don't introduce two visually-confusable
+characters in the same session (use the component graph for visual similarity), and flag known
+confusion-pairs for contrast practice.
+
+**Change:**
+- `lib/graph/interference.ts` (pure, 10 tests): `visualComponents` (reads a concept's `comp:`
+  prereqs — a char's components live right in `prereq_ids`, e.g. `char:是 → comp:日`),
+  `confusable` (overlap-coefficient ≥ 0.5 — catches shared-phonetic look-alikes 请/清/晴 and
+  near-identical 是/时), `selectNonInterfering` (greedy: pick up to the budget with no two chosen
+  confusable, defer the rest), `confusionPairs`.
+- `app/actions/session.ts`: top-up now pulls a **wider gated frontier** (`nextConcepts(budget*3)`)
+  then introduces `selectNonInterfering(candidates, budget).chosen`.
+- `app/actions/drills.ts` → `getConfusionPairs()`: confusable pairs among the learner's taught
+  characters (component graph) with CC-CEDICT pinyin/gloss — the "flag".
+- `components/SkillDashboard.tsx`: an **"Easily confused"** strip on Progress showing those
+  look-alike pairs side by side with 🔊 to compare (the contrast surface).
+
+**Gating + no-fabrication proof:**
+- **No untaught-token leak / gating intact by construction:** interference logic only ever
+  *reorders or defers* concepts that `nextConcepts` already returned (gated, unlocked) — `chosen`
+  is always a subset of the gated frontier; nothing ungated is ever introduced. A deferred concept
+  stays the next-in-order frontier and is introduced in a later session (nothing lost). The
+  introduced count is still capped at `budget`. Cold start (phonemes — no components) is
+  unaffected. Tests assert subset/defer/limit behavior.
+- **No fabricated facts:** confusability is computed purely from the component graph
+  (`prereq_ids`); `getConfusionPairs` reads pinyin/gloss from CC-CEDICT. Nothing invented.
+
+**Result:** sessions spread visually-similar characters across days; the learner sees their own
+confusable pairs on Progress. Build + **43 tests** (10 new) green.
+
+**Risk/tradeoff:** when confusable items cluster in the frontier, a session may introduce slightly
+fewer than `budget` new concepts (the deferred ones come next session) — intended. "Semantic"
+confusability isn't implemented (no fabrication-free semantic source); visual (component-graph)
+similarity is the signal, per the spec. Contrast practice is currently a compare-and-listen strip;
+a graded contrast *drill* could consume `getConfusionPairs` later if wanted.

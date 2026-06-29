@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import AudioButton from "@/components/AudioButton";
 import type { SkillStat } from "@/app/actions/progress";
+import type { ConfusionItem } from "@/app/actions/drills";
 
 // Lazy-load the Recharts sparkline (~99.5 KB gz) so it stays out of the initial
 // /dashboard bundle and off the main thread. The h-16 wrapper reserves space, so
@@ -24,11 +26,13 @@ export default function SkillDashboard({
   chars,
   words,
   reviews,
+  confusable = [],
 }: {
   stats: SkillStat[];
   chars: number;
   words: number;
   reviews: number;
+  confusable?: { a: ConfusionItem; b: ConfusionItem }[];
 }) {
   return (
     <main className="mx-auto max-w-xl px-6 py-8">
@@ -93,6 +97,35 @@ export default function SkillDashboard({
         is recorded, so the spaced-repetition schedule can later be re-tuned to your own memory once
         enough history has built up.
       </div>
+
+      {confusable.length > 0 && (
+        <section className="mt-4">
+          <h2 className="text-sm font-semibold text-stone-700">Easily confused</h2>
+          <p className="mb-2 text-xs text-stone-400">
+            Look-alikes you&apos;ve learned — compare them so they don&apos;t blur together.
+          </p>
+          <div className="grid gap-2">
+            {confusable.map(({ a, b }) => (
+              <div key={`${a.char}-${b.char}`} className="flex items-center justify-around rounded-2xl border border-stone-200 bg-white p-3">
+                {[a, b].map((c, i) => (
+                  <div key={c.char} className="flex items-center gap-2">
+                    {i === 1 && <span className="mr-1 text-stone-300">vs</span>}
+                    <span className="text-2xl text-stone-900">{c.char}</span>
+                    <div className="text-left">
+                      <div className="text-xs font-medium text-teal-700">{c.pinyin}</div>
+                      <div className="max-w-[6rem] truncate text-[11px] text-stone-500">{c.gloss}</div>
+                    </div>
+                    <AudioButton
+                      text={c.char}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100"
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
