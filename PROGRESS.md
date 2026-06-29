@@ -183,3 +183,27 @@ login redirect under those routes; it's corrected on the first online authed vis
 from the cross-origin Supabase CDN, which the SW doesn't cache — so `AUDIO_CACHE` mainly holds
 `/api/tts` fallbacks. Restoring full offline audio for CDN clips (caching that origin) is a
 possible follow-up, out of S4's scope. No learning behavior changed.
+
+---
+
+## S5 — /api/dict on the edge + Supabase preconnect
+
+**Baseline:** `/api/dict` (tap-to-define lookup) ran on the Node.js runtime; cross-origin Supabase
+(CDN audio + API) connections were established lazily on first use.
+
+**Change:**
+- `app/api/dict/route.ts`: `export const runtime = "edge"`. Verified the chain is edge-safe —
+  `lookup.ts` → `@supabase/ssr` + `next/headers` (fetch-based, no Node APIs), no jieba/`node:*`.
+  Kept the **authenticated** cookie client because the `dictionary` RLS policy is
+  `to authenticated using (true)` — an anon client would read nothing.
+- `app/layout.tsx`: `<link rel="preconnect">` + `dns-prefetch` to the Supabase origin in `<head>`,
+  warming TLS for CDN audio and API calls before first use.
+
+**Result:**
+- Build marks `ƒ /api/dict` as edge and compiles clean (the edge build is itself the
+  edge-compatibility proof — an incompatible import would fail the build). 29 tests pass.
+- Expected: lower cold-start + execution at an edge POP near the user → faster tap-to-define;
+  first audio/API hit skips DNS+TLS setup. (Edge latency is verifiable once deployed.)
+
+**Risk/tradeoff:** edge has no Node APIs (none used). Response is unchanged (same authed query,
+same RLS, same `Cache-Control` + SW SWR caching). No learning behavior changed.
