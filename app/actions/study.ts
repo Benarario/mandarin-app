@@ -377,7 +377,7 @@ export async function submitReview(
   const row = card as CardRow & { notes: { fields_json: VocabFields } | null };
 
   const now = new Date();
-  const result = fsrsReview(row, rating, now, settings.desired_retention);
+  const result = fsrsReview(row, rating, now, settings.desired_retention, true, settings.fsrs_params);
 
   await supabase
     .from("cards")

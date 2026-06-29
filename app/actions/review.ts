@@ -17,10 +17,11 @@ export async function submitConceptReview(
 
   const { data: settings } = await supabase
     .from("user_settings")
-    .select("desired_retention")
+    .select("*") // "*" so a not-yet-applied fsrs_params column can't error the query
     .eq("user_id", user.id)
     .maybeSingle();
-  const retention = settings?.desired_retention ?? 0.9;
+  const retention = (settings?.desired_retention as number | undefined) ?? 0.9;
+  const params = (settings?.fsrs_params as number[] | null | undefined) ?? null;
 
   const { data: card, error } = await supabase
     .from("cards")
@@ -35,7 +36,7 @@ export async function submitConceptReview(
   };
 
   const now = new Date();
-  const result = fsrsReview(row, rating, now, retention);
+  const result = fsrsReview(row, rating, now, retention, true, params);
 
   await supabase
     .from("cards")

@@ -44,17 +44,24 @@ export interface SchedulerCardFields {
   elapsed_days: number;
 }
 
-// Schedulers are cheap but we memoise per desired-retention value.
-const cache = new Map<number, FSRS>();
-export function getScheduler(desiredRetention = 0.9, enableFuzz = true): FSRS {
-  const key = enableFuzz ? desiredRetention : -desiredRetention;
+// Valid FSRS weight-vector lengths (FSRS-6 = 21; older sets 17/19).
+const VALID_WEIGHT_LENGTHS = new Set([17, 19, 21]);
+function usableWeights(w?: number[] | null): number[] | undefined {
+  return w && VALID_WEIGHT_LENGTHS.has(w.length) && w.every((n) => Number.isFinite(n)) ? w : undefined;
+}
+
+// Schedulers are cheap but we memoise per (retention, fuzz, weights) combo.
+const cache = new Map<string, FSRS>();
+export function getScheduler(desiredRetention = 0.9, enableFuzz = true, weights?: number[] | null): FSRS {
+  const w = usableWeights(weights);
+  const key = `${desiredRetention}|${enableFuzz}|${w ? w.join(",") : "default"}`;
   let f = cache.get(key);
   if (!f) {
     f = fsrs(
       generatorParameters({
         request_retention: desiredRetention,
         enable_fuzz: enableFuzz, // fuzz spreads due dates so reviews don't clump
-        // FSRS-6 defaults (21 weights) + learning steps ["1m","10m"] are used.
+        ...(w ? { w } : {}), // personalized weights (else FSRS-6 defaults)
       }),
     );
     cache.set(key, f);
@@ -111,8 +118,9 @@ export function review(
   now: Date = new Date(),
   desiredRetention = 0.9,
   enableFuzz = true,
+  weights?: number[] | null,
 ): ReviewResult {
-  const f = getScheduler(desiredRetention, enableFuzz);
+  const f = getScheduler(desiredRetention, enableFuzz, weights);
   const before = toFsrsCard(db);
   const { card } = f.next(before, now, rating as unknown as Grade);
   const fields = fromFsrsCard(card);

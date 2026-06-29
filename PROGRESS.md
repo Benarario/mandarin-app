@@ -392,3 +392,39 @@ production and all recognition cards are unchanged.
 **Risk/tradeoff:** without a licensed stroke-order dataset there's no animated stroke guidance —
 the reveal shows the glyph + component breakdown instead. Adding animated stroke order would
 require importing a permissively-licensed dataset (e.g. Make-Me-a-Hanzi) — a separate decision.
+
+## P5 — FSRS personalization
+
+**Goal:** a batch job that retrains FSRS parameters from `revlog` once enough reviews exist, plus
+a user "desired retention" setting (0.8–0.9). Keep `ts-fsrs`; don't block on it shipping an optimizer.
+
+**Found already done:** `desired_retention` is stored (`0001`), exposed via a Settings slider, and
+**applied** in both review paths (`submitReview`, `submitConceptReview`). Verified — left as-is.
+
+**Change (decision: plumbing + seam now; never store invented weights):**
+- `0005_fsrs_params.sql`: additive `user_settings.fsrs_params jsonb` (NULL = ts-fsrs defaults).
+- `lib/srs/fsrs.ts`: `getScheduler`/`review` accept optional per-user `weights`; applied only when
+  valid (length 17/19/21, finite) via `generatorParameters({ w })`, else defaults. Scheduler cache
+  keyed by (retention, fuzz, weights).
+- `app/actions/{study,review}.ts`: pass `settings.fsrs_params` into scheduling (`review.ts` selects
+  `*` so a not-yet-applied column can't error).
+- `lib/srs/optimize.ts` (pure, tested): `summarizeReviews` (measured retention = pass-rate on
+  mature reviews), `shouldOptimize` (gate at ≥1000), `isValidWeights`, and **`optimizeWeights` —
+  the seam**, returns `null` today (ts-fsrs has no optimizer; a real fitter / fsrs-rs drops in here).
+- `scripts/fsrs/optimize.ts` (`npm run fsrs:optimize`): per user, reads `revlog`, prints
+  diagnostics, and stores weights only if `optimizeWeights` returns a valid vector (never otherwise).
+
+**Gating + no-fabrication proof:**
+- **No untaught-token leak / gating untouched:** P5 only changes *scheduling parameters* (retention,
+  weights) — not what is unlocked or surfaced. `nextConcepts`/`assertOnlyTaught` are untouched.
+- **No fabricated facts:** `optimizeWeights` returns `null` → no invented weights are ever stored;
+  diagnostics come from the real `revlog`; weights are validated before use (invalid → defaults).
+
+**Result:** ran `npm run fsrs:optimize` on live data — `reviews=23 mature=0 … ↳ need ≥1000 reviews,
+keeping defaults` (correctly gated, stored nothing). Tests: gate, summary, validity, seam-returns-null,
+and scheduler weight-application/fallback. Build + **50 tests** green.
+
+**Risk/tradeoff:** real weight-fitting is **not active** — the seam returns null until a real
+optimizer is wired (a from-scratch FSRS-6 fitter or an fsrs-rs/py-fsrs dependency), per your choice.
+Migration `0005` should be applied in the SQL Editor before this branch deploys (code is resilient
+if it isn't, but the column is needed to persist future fitted weights).

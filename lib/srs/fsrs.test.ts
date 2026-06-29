@@ -4,6 +4,7 @@ import {
   review,
   previewIntervals,
   newCardFields,
+  getScheduler,
   RATING,
   intervalLabel,
 } from "./fsrs";
@@ -72,6 +73,17 @@ describe("scheduling is deterministic with fuzz disabled and ordered by rating",
     expect(again).toBeLessThanOrEqual(hard);
     expect(hard).toBeLessThanOrEqual(good);
     expect(good).toBeLessThanOrEqual(easy);
+  });
+});
+
+describe("personalized FSRS weights (P5)", () => {
+  it("uses a distinct scheduler for valid custom weights, and ignores invalid ones", () => {
+    const def = getScheduler(0.9, true);
+    const w = [...generatorParameters().w];
+    w[20] = w[20] + 0.1; // a valid 21-length tweak
+    expect(getScheduler(0.9, true, w)).not.toBe(def); // personalized
+    expect(getScheduler(0.9, true, [1, 2, 3])).toBe(def); // wrong length → defaults
+    expect(getScheduler(0.9, true, null)).toBe(def); // none → defaults
   });
 });
 

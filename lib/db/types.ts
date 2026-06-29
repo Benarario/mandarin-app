@@ -63,6 +63,7 @@ export interface UserSettings {
   learning_steps: number[];
   pinyin_mode: "full" | "on_tap" | "new_only" | "none" | "adaptive";
   voice_preference: "female" | "male";
+  fsrs_params?: number[] | null; // personalized FSRS weights; null = defaults
 }
 
 export interface SkillProgressRow {

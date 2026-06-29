@@ -19,7 +19,8 @@
     "etl:graph:compile": "tsx scripts/etl/compile-graph.ts",
     "etl:graph:load": "tsx scripts/etl/load-graph.ts",
     "etl:reader": "tsx scripts/etl/build-reader.ts",
-    "tts:pregen": "tsx scripts/tts/pregen.ts"
+    "tts:pregen": "tsx scripts/tts/pregen.ts",
+    "fsrs:optimize": "tsx scripts/fsrs/optimize.ts"
   },
   "dependencies": {
     "@node-rs/jieba": "^2.0.1",
