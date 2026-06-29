@@ -95,3 +95,35 @@ Total bytes are ~unchanged by design (code is split, not removed); the win is `/
 
 **Risk/tradeoff:** the sparkline now renders a beat after the cards (placeholder reserves its
 space, CLS stays 0). No data/behavior change. Build + 29 tests green.
+
+---
+
+## S2 — Pre-generate review audio into Supabase Storage (CDN)
+
+**Baseline:** every 🔊 tap hit `/api/tts`, which synthesized via edge-tts on the server on
+first play (slow first tap; repeated cost; depends on edge-tts working wherever the function
+runs — uncertain on Vercel).
+
+**Change (keeps the TtsProvider interface):**
+- New public Storage bucket **`tts`** (created idempotently via the service role).
+- `lib/tts/storage.ts`: deterministic object key `sha256("<voice>:<text>").mp3`, public-URL
+  builder, bucket ensure + upload. `lib/supabase/admin.ts`: service-role client.
+- `scripts/tts/pregen.ts` (`npm run tts:pregen`): batch-synthesizes the review-queue texts
+  (characters + words in teaching order + tone examples) and uploads MP3s. Idempotent
+  (skips clips already in the bucket); `TTS_LIMIT` controls how many concepts.
+- `AudioButton`: tries the **CDN clip first** (no synthesis), falls back to `/api/tts`.
+- `/api/tts`: still the fallback, but now also **uploads** what it synthesizes, so the bucket
+  self-warms for every device.
+
+**Result:**
+- Bucket created; warmed **154 clips** (`TTS_LIMIT=150` + tone examples), generated 154 / failed 0.
+- Verified `妈` served from the CDN: `HTTP 200`, `audio/mpeg`, 6048 bytes, at the exact URL the
+  browser computes (node `sha256` ≡ browser `crypto.subtle` digest).
+- Audio for pre-generated clips is now a **static CDN GET (0 synthesis, cacheable, offline via
+  SW)** instead of a server edge-tts call. Cold clips fall back to `/api/tts` once, then are
+  served from the CDN thereafter.
+- Extend coverage anytime with `TTS_LIMIT=2000 npm run tts:pregen`.
+
+**Risk/tradeoff:** cold (not-yet-generated) clips cost one extra failed CDN request before the
+`/api/tts` fallback — negligible, and self-heals as the bucket warms. No learning behavior or
+spoken text changed (same sourced text, same voice). Build + 29 tests green.
