@@ -291,3 +291,34 @@ line is listenable. Build + **33 tests** (4 new) green.
 
 **Risk/tradeoff:** sentence audio isn't pre-warmed (S2 warmed words/chars), so the first play of a
 given line synthesizes via `/api/tts` then caches to the CDN — one slow first tap per sentence.
+
+## P2 — Tone-perception (HVPT) drills
+
+**Goal:** ear-training drills — "which tone did you hear?" and minimal-pair discrimination —
+using existing edge-tts audio + CC-CEDICT words. No Azure. Wired into `/tones`.
+
+**Change:**
+- `app/actions/drills.ts` → `getToneDrills()`: builds single-syllable "which tone" items and
+  minimal-pair families (same toneless base, contrasting tones) from the learner's **taught**
+  single-syllable vocabulary (`allowedVocabulary`) plus the canonical Stage-0 contrast families
+  (妈/麻/马/骂, 八/拔/把/爸). Tone parsed from `pinyin_numbered`, base via `parseSyllable`,
+  gloss/pinyin from CC-CEDICT; proper-noun (capitalised) readings skipped.
+- `components/ToneDrills.tsx`: client widget with two modes — hear a clip then pick the tone
+  (1–4, with `PitchContour`), or pick which minimal-pair word was played. Immediate feedback +
+  running score; audio via the S2 CDN-first `AudioButton` (word hidden until answered).
+- `app/tones/page.tsx`: renders `<ToneDrills>` under the existing tone-pair grid.
+
+**Gating + no-fabrication proof:**
+- **No untaught-token leak:** drill words come from `allowedVocabulary` (taught, status ≥ 1),
+  plus the Stage-0 canonical tone examples that `/tones` already shows non-gated as phonology
+  illustration (sanctioned, pre-vocabulary). No cards/FSRS are created; it's ephemeral perception
+  practice, so there's no path to schedule/quiz an untaught concept.
+- **No fabricated facts:** verified against live data — `ba`: 八bā/拔bá/把bǎ/爸bà; `ma`:
+  妈mā/麻má/马mǎ/骂mà. Every tone/pinyin/gloss is read from CC-CEDICT; the drill invents nothing.
+
+**Result:** `/tones` now has an interactive ear-trainer. Build + 33 tests green.
+
+**Risk/tradeoff:** the Stage-0 seed families are surfaced even to a brand-new learner (consistent
+with the existing non-gated tone examples on `/tones`); if you want *strictly* taught-only words,
+say so and I'll drop the seed. Drill clips for taught words may need one on-demand synth before
+they're CDN-cached.

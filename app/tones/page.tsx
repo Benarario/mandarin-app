@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getUser, isSupabaseConfigured } from "@/lib/auth";
-import { getTonePairExamples } from "@/app/actions/drills";
+import { getTonePairExamples, getToneDrills } from "@/app/actions/drills";
 import PitchContour from "@/components/PitchContour";
 import AudioButton from "@/components/AudioButton";
+import ToneDrills from "@/components/ToneDrills";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function TonesPage() {
   const user = await getUser();
   if (!user) redirect("/login");
 
-  const examples = await getTonePairExamples();
+  const [examples, drills] = await Promise.all([getTonePairExamples(), getToneDrills()]);
   const pairs: [number, number][] = [];
   for (let a = 1; a <= 4; a++) for (let b = 1; b <= 4; b++) pairs.push([a, b]);
 
@@ -61,6 +62,8 @@ export default async function TonesPage() {
           );
         })}
       </div>
+
+      <ToneDrills whichTone={drills.whichTone} pairs={drills.pairs} />
 
       <Link href="/" className="mt-8 inline-block text-sm text-stone-500 underline">
         ← Back home
