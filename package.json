@@ -19,6 +19,7 @@
     "etl:graph:compile": "tsx scripts/etl/compile-graph.ts",
     "etl:graph:load": "tsx scripts/etl/load-graph.ts",
     "etl:reader": "tsx scripts/etl/build-reader.ts",
+    "etl:novels": "tsx scripts/etl/build-novels.ts",
     "tts:pregen": "tsx scripts/tts/pregen.ts",
     "fsrs:optimize": "tsx scripts/fsrs/optimize.ts"
   },

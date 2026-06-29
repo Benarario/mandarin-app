@@ -6,7 +6,7 @@ import { annotateMany } from "@/lib/annotate";
 import { segment } from "@/lib/segment/jieba";
 import { getStatusMaps } from "@/lib/graph/mastery";
 import { SEED_TEXTS, getSeedText } from "@/lib/seed/reader";
-import { getGlobalReaderTexts, getReaderText, type ReaderText } from "@/lib/reader/texts";
+import { getGlobalReaderTexts, getUserTexts, getReaderText, SERIES_TYPES, type ReaderText } from "@/lib/reader/texts";
 import { recommendForYou } from "@/lib/reader/recommend";
 import { isHan } from "@/lib/pinyin/fading";
 import { timed, timedSync } from "@/lib/perf/timing";
@@ -53,10 +53,14 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
 
   const status = await getStatusMaps(supabase, user.id);
 
-  // Graded reader texts from Tatoeba (global DB rows); seed texts as a fallback
-  // so the reader still works before the ETL has been run.
-  const dbTexts = await timed("reader.globalTexts", () => getGlobalReaderTexts(supabase));
-  const library: ReaderText[] = dbTexts.length ? dbTexts : SEED_TEXTS;
+  // Global reading texts (Tatoeba sets + public-domain novels) + the learner's
+  // own imported texts; seed texts as a fallback so the reader works pre-ETL.
+  const [dbTexts, userTexts] = await Promise.all([
+    timed("reader.globalTexts", () => getGlobalReaderTexts(supabase)),
+    timed("reader.userTexts", () => getUserTexts(supabase, user.id)),
+  ]);
+  const library: ReaderText[] =
+    dbTexts.length || userTexts.length ? [...dbTexts, ...userTexts] : SEED_TEXTS;
 
   // ── No text chosen → the picker (spec §13) ──
   if (!id) {
@@ -73,6 +77,19 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
     const forYou = recommendForYou(scored);
     const forYouIds = new Set(forYou.map((s) => s.t.id));
     const rest = scored.filter((s) => !forYouIds.has(s.t.id));
+
+    // Long-form texts (novels / imports) group by series/book; everything else
+    // (Tatoeba sets) lists individually under "All texts".
+    const standalone = rest.filter((s) => !SERIES_TYPES.has(s.t.type ?? ""));
+    const seriesMap = new Map<string, typeof rest>();
+    for (const s of rest) {
+      if (!SERIES_TYPES.has(s.t.type ?? "")) continue;
+      const key = s.t.topic || s.t.title;
+      (seriesMap.get(key) ?? seriesMap.set(key, []).get(key)!).push(s);
+    }
+    for (const arr of seriesMap.values()) arr.sort((a, b) => (a.t.seq ?? 0) - (b.t.seq ?? 0));
+
+    const chapterLabel = (t: ReaderText) => (t.title.includes(" · ") ? t.title.split(" · ").slice(1).join(" · ") : t.title);
 
     return (
       <main className="mx-auto max-w-xl px-6 py-8">
@@ -95,14 +112,27 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
           </section>
         )}
 
-        <section className="mt-6">
-          {forYou.length > 0 && <h2 className="mb-2 text-sm font-semibold text-stone-700">All texts</h2>}
-          <div className="space-y-3">
-            {rest.map(({ t, coverage }) => (
-              <TextCard key={t.id} t={t} coverage={coverage} />
-            ))}
-          </div>
-        </section>
+        {[...seriesMap.entries()].map(([series, chapters]) => (
+          <section key={series} className="mt-6">
+            <h2 className="mb-2 text-sm font-semibold text-stone-700">📚 {series}</h2>
+            <div className="space-y-3">
+              {chapters.map(({ t, coverage }) => (
+                <TextCard key={t.id} t={t} coverage={coverage} label={chapterLabel(t)} />
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {standalone.length > 0 && (
+          <section className="mt-6">
+            <h2 className="mb-2 text-sm font-semibold text-stone-700">All texts</h2>
+            <div className="space-y-3">
+              {standalone.map(({ t, coverage }) => (
+                <TextCard key={t.id} t={t} coverage={coverage} />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     );
   }
@@ -131,8 +161,19 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
   );
 }
 
-function TextCard({ t, coverage, highlight }: { t: ReaderText; coverage: number; highlight?: boolean }) {
+function TextCard({
+  t,
+  coverage,
+  highlight,
+  label,
+}: {
+  t: ReaderText;
+  coverage: number;
+  highlight?: boolean;
+  label?: string;
+}) {
   const comfortable = coverage >= 80;
+  const isSeries = SERIES_TYPES.has(t.type ?? "");
   return (
     <Link
       href={`/reader?id=${t.id}`}
@@ -141,14 +182,14 @@ function TextCard({ t, coverage, highlight }: { t: ReaderText; coverage: number;
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className="font-semibold text-stone-800">{t.title}</span>
+        <span className="font-semibold text-stone-800">{label ?? t.title}</span>
         <span className={`text-sm font-bold ${comfortable ? "text-emerald-700" : "text-amber-600"}`}>
           {coverage}%
         </span>
       </div>
       <div className="mt-1 flex gap-2 text-xs text-stone-500">
-        <span className="rounded-full bg-stone-100 px-2 py-0.5">{t.level}</span>
-        <span className="rounded-full bg-stone-100 px-2 py-0.5">{t.topic}</span>
+        {t.level && <span className="rounded-full bg-stone-100 px-2 py-0.5">{t.level}</span>}
+        {!isSeries && t.topic && <span className="rounded-full bg-stone-100 px-2 py-0.5">{t.topic}</span>}
         <span className="rounded-full bg-stone-100 px-2 py-0.5">{t.lines.length} lines</span>
         {!comfortable && <span className="text-amber-600">stretch</span>}
       </div>

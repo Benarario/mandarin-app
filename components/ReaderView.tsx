@@ -168,7 +168,7 @@ export default function ReaderView({
                 ＋
               </button>
             </p>
-            {bilingual && <p className="mt-1 text-sm text-stone-500">{english[i]}</p>}
+            {bilingual && english[i] && <p className="mt-1 text-sm text-stone-500">{english[i]}</p>}
           </div>
         ))}
       </article>

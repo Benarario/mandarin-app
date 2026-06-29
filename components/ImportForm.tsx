@@ -40,7 +40,10 @@ export default function ImportForm() {
   return (
     <main className="mx-auto max-w-xl px-6 py-8">
       <header className="mb-4">
-        <Link href="/settings" className="text-xs text-stone-400 hover:text-stone-600">← Settings</Link>
+        <div className="flex items-center justify-between">
+          <Link href="/settings" className="text-xs text-stone-400 hover:text-stone-600">← Settings</Link>
+          <Link href="/import/text" className="text-xs font-medium text-orange-700 hover:text-orange-800">Import a text/novel →</Link>
+        </div>
         <h1 className="text-2xl font-bold text-orange-900">Import cards</h1>
         <p className="mt-1 text-sm text-stone-500">
           Paste rows or upload a CSV/TSV (e.g. from Anki). One word per line; the first Chinese
