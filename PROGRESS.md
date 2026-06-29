@@ -155,3 +155,31 @@ cached tokens.
 changes. Tokens reproduce `annotate()` exactly (same shape, same best-reading-by-freq choice), so
 rendering is identical. No fabrication (facts from CC-CEDICT), no gating change (reader text was
 never gated). Build + 29 tests green.
+
+---
+
+## S4 — Service worker: pre-cache shells + cap runtime caches
+
+**Baseline:** SW (`v2`) pre-cached only `/` on install; `DICT_CACHE` and `AUDIO_CACHE` grew
+**unbounded** (every distinct dict lookup / audio clip cached forever → storage bloat on a phone).
+
+**Change (`public/sw.js` → `v3`):**
+- Install now warms the core navigations `["/", "/review", "/reader", "/dashboard"]`, each added
+  individually with a `catch` so an auth redirect (when signed out) doesn't abort the others.
+- Added `LIMITS = { dict: 300, audio: 150 }` with `trim()` (evict oldest beyond the cap;
+  `cache.keys()` is insertion-ordered) called after every write, plus `touch()` (re-insert on a
+  cache hit → most-recently-used) so eviction is **LRU**, not just FIFO. Applied to `cacheFirst`
+  (audio) and `staleWhileRevalidate` (dict).
+- `VERSION` bump retires the old `v2` caches via the existing `activate` cleanup.
+
+**Result:**
+- Offline cold-open now covers Review/Reader/Dashboard, not just Home.
+- `DICT_CACHE` ≤ 300 entries, `AUDIO_CACHE` ≤ 150 — bounded storage, LRU eviction.
+- `node --check public/sw.js` passes; build + 29 tests green.
+
+**Risk/tradeoff:** install-time shell fetches send cookies, so a signed-out install caches the
+login redirect under those routes; it's corrected on the first online authed visit
+(`networkFirstShell` refreshes on every success). Note from S2: pre-generated audio is now served
+from the cross-origin Supabase CDN, which the SW doesn't cache — so `AUDIO_CACHE` mainly holds
+`/api/tts` fallbacks. Restoring full offline audio for CDN clips (caching that origin) is a
+possible follow-up, out of S4's scope. No learning behavior changed.
