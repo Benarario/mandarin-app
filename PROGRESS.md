@@ -61,3 +61,37 @@ lowest Perf (90) despite a fast FCP/LCP — classic symptom of a heavy JS chunk 
 
 **Risk/tradeoff:** none — measurement only; no learning behavior changed. The analyzer is
 opt-in so the normal Turbopack build is unaffected.
+
+---
+
+## S1 — Lazy-load Recharts on /dashboard
+
+**Baseline:** Recharts (`499-*.js`, 337.8 KB raw / **99.5 KB gz**) shipped as a synchronous
+chunk in `/dashboard`'s initial load. `/dashboard` had the worst Lighthouse TBT (360 ms) and
+lowest Perf (90) despite fast FCP/LCP — main-thread blocked after paint.
+
+**Change:** extracted the chart into `components/SkillSparkline.tsx` and import it from
+`SkillDashboard.tsx` via `next/dynamic(..., { ssr: false })`, with a `loading` placeholder
+inside the existing `h-16` wrapper (no layout shift). `ssr:false` is valid here because
+`SkillDashboard` is a Client Component (per Next 16 lazy-loading guide).
+
+**Result (proof Recharts left the initial load):**
+- `react-loadable-manifest.json` now has the dynamic boundary
+  `components/SkillDashboard.tsx -> @/components/SkillSparkline`.
+- The `/dashboard` page chunk contains **0** occurrences of `recharts` (was pulled in via the
+  shared `499` chunk before).
+- The recharts chunk renamed `499-*.js` → `499.*.js` (webpack async-chunk marker): it is now
+  fetched on demand, after the dashboard renders, instead of blocking initial load.
+
+| | Before | After |
+|---|---|---|
+| Recharts in `/dashboard` initial JS | yes (99.5 KB gz, blocking) | **no** (deferred, on-demand) |
+| Total app chunk JS (all routes) | 454.4 KB gz | 455.6 KB gz (+1.2 KB split overhead) |
+| `/dashboard` initial JS | — | **−~99.5 KB gz** (recharts deferred) |
+
+Total bytes are ~unchanged by design (code is split, not removed); the win is `/dashboard`'s
+**initial** JS and main-thread work. Expected Lighthouse effect: dashboard TBT drops from
+360 ms. _Re-confirm TBT via Lighthouse once this branch is deployed._
+
+**Risk/tradeoff:** the sparkline now renders a beat after the cards (placeholder reserves its
+space, CLS stays 0). No data/behavior change. Build + 29 tests green.

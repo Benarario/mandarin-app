@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import dynamic from "next/dynamic";
 import type { SkillStat } from "@/app/actions/progress";
+
+// Lazy-load the Recharts sparkline (~99.5 KB gz) so it stays out of the initial
+// /dashboard bundle and off the main thread. The h-16 wrapper reserves space, so
+// no layout shift while it loads.
+const SkillSparkline = dynamic(() => import("@/components/SkillSparkline"), {
+  ssr: false,
+  loading: () => <div className="h-full" />,
+});
 
 const META: Record<string, { label: string; icon: string; color: string; unit: string }> = {
   reading: { label: "Reading", icon: "📖", color: "#c2410c", unit: "read" },
@@ -67,14 +75,7 @@ export default function SkillDashboard({
                 </div>
               </div>
               <div className="mt-2 h-16">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -28 }}>
-                    <XAxis dataKey="t" hide />
-                    <YAxis domain={[0, 9]} tick={{ fontSize: 10 }} width={28} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="band" stroke={meta.color} strokeWidth={2} dot={false} isAnimationActive={false} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <SkillSparkline data={data} color={meta.color} />
               </div>
             </div>
           );
