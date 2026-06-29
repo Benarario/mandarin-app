@@ -27,4 +27,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Bundle analysis is opt-in. @next/bundle-analyzer injects a `webpack` config,
+// which would make the default Turbopack build fail — so we only apply it when
+// ANALYZE=true (run that build with `--webpack`, see the "analyze" script).
+export default async (): Promise<NextConfig> => {
+  if (process.env.ANALYZE === "true") {
+    const withBundleAnalyzer = (await import("@next/bundle-analyzer")).default({ enabled: true });
+    return withBundleAnalyzer(nextConfig) as NextConfig;
+  }
+  return nextConfig;
+};

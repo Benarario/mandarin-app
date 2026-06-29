@@ -5,6 +5,7 @@ import { ensureColdStart, introduceConcept } from "@/app/actions/lesson";
 import { nextConcepts } from "@/lib/graph/gate";
 import { annotateMany, type AnnToken } from "@/lib/annotate";
 import { getCharStatusMap } from "@/lib/graph/mastery";
+import { timed } from "@/lib/perf/timing";
 import type { BreakdownPart, ConceptReviewItem, ConceptType } from "@/lib/db/concept-types";
 
 const startOfTodayIso = () => {
@@ -138,7 +139,8 @@ export async function getConceptSession(): Promise<{
   const budget = Math.max(0, dailyNew - (introducedToday ?? 0));
   let topUp = 0;
   if (budget > 0) {
-    for (const c of await nextConcepts(user.id, budget)) {
+    const next = await timed("session.nextConcepts", () => nextConcepts(user.id, budget));
+    for (const c of next) {
       if ((await introduceConcept(c.id)).introduced) topUp++;
     }
   }
@@ -146,26 +148,30 @@ export async function getConceptSession(): Promise<{
   const select = "id, concept_id, template_index, modality, fsrs_state, notes(fields_json), concepts(type, ref)";
   const nowIso = new Date().toISOString();
 
-  const { data: due } = await supabase
-    .from("cards")
-    .select(select)
-    .eq("user_id", user.id)
-    .not("concept_id", "is", null)
-    .eq("suspended", false)
-    .neq("fsrs_state", "new")
-    .lte("due_at", nowIso)
-    .order("due_at", { ascending: true })
-    .limit(200);
+  const { data: due } = await timed("session.dueCards", () =>
+    supabase
+      .from("cards")
+      .select(select)
+      .eq("user_id", user.id)
+      .not("concept_id", "is", null)
+      .eq("suspended", false)
+      .neq("fsrs_state", "new")
+      .lte("due_at", nowIso)
+      .order("due_at", { ascending: true })
+      .limit(200),
+  );
 
-  const { data: fresh } = await supabase
-    .from("cards")
-    .select(select)
-    .eq("user_id", user.id)
-    .not("concept_id", "is", null)
-    .eq("suspended", false)
-    .eq("fsrs_state", "new")
-    .order("created_at", { ascending: true })
-    .limit(200);
+  const { data: fresh } = await timed("session.freshCards", () =>
+    supabase
+      .from("cards")
+      .select(select)
+      .eq("user_id", user.id)
+      .not("concept_id", "is", null)
+      .eq("suspended", false)
+      .eq("fsrs_state", "new")
+      .order("created_at", { ascending: true })
+      .limit(200),
+  );
 
   const rows = [...((due ?? []) as unknown as CardJoin[]), ...((fresh ?? []) as unknown as CardJoin[])];
   const items = interleave(rows.map(toItem).filter(Boolean) as ConceptReviewItem[]);
@@ -179,7 +185,7 @@ export async function getConceptSession(): Promise<{
     return it.templateIndex === 0 ? it.front : it.back; // word
   };
   const strings = items.map((it) => chineseOf(it) ?? "");
-  const annotated = await annotateMany(strings);
+  const annotated = await timed("session.annotateMany", () => annotateMany(strings));
   items.forEach((it, i) => {
     if (it.conceptType === "phoneme") return;
     const tokens: AnnToken[] = annotated[i];
@@ -188,7 +194,7 @@ export async function getConceptSession(): Promise<{
   });
 
   // Per-character mastery STATUS drives pinyin fading (fades only at status ≥ 4).
-  const mastery = await getCharStatusMap(supabase, user.id);
+  const mastery = await timed("session.charStatusMap", () => getCharStatusMap(supabase, user.id));
 
   return { items, mastery, pinyinMode: settings?.pinyin_mode ?? "adaptive", seeded: coldSeeded + topUp };
 }
