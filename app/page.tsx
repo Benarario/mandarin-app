@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getUser, isSupabaseConfigured } from "@/lib/auth";
 import { getCounts } from "@/app/actions/study";
+import { getHabitStats } from "@/app/actions/habit";
+import HabitWidget from "@/components/HabitWidget";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +44,7 @@ export default async function Home() {
     );
   }
 
-  const counts = await getCounts();
+  const [counts, habit] = await Promise.all([getCounts(), getHabitStats()]);
   return (
     <main className="mx-auto max-w-xl px-6 py-10">
       <Header />
@@ -51,6 +53,8 @@ export default async function Home() {
         <Stat label="New" value={counts.newCards} accent="text-teal-700" />
         <Stat label="In deck" value={counts.total} accent="text-stone-700" />
       </section>
+
+      <HabitWidget stats={habit} />
 
       <Link
         href="/review"

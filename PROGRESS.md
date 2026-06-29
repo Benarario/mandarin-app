@@ -428,3 +428,51 @@ and scheduler weight-application/fallback. Build + **50 tests** green.
 optimizer is wired (a from-scratch FSRS-6 fitter or an fsrs-rs/py-fsrs dependency), per your choice.
 Migration `0005` should be applied in the SQL Editor before this branch deploys (code is resilient
 if it isn't, but the column is needed to persist future fitted weights).
+
+## P6 — Habit scaffolding (daily goal, streak, reminder)
+
+**Goal:** a daily goal, a streak, and one optional reminder — purely motivational; must not alter
+scheduling correctness.
+
+**Change:**
+- `lib/habit.ts` (pure, 6 tests): `computeHabit(timestamps, now)` → today's count, practice
+  **streak** (consecutive days with ≥1 review; today-in-progress doesn't break it), and a 7-day strip.
+- `app/actions/habit.ts` → `getHabitStats()`: **read-only** over `revlog` (last 90 days).
+- `components/HabitWidget.tsx` (Home): 🔥 streak, today vs **daily goal** progress bar, 7-day strip,
+  and an **optional reminder** (toggle + time) that shows a gentle in-app nudge when you open the app
+  after that time without having met the goal. Goal + reminder are per-device (localStorage).
+
+**Gating + no-fabrication proof:**
+- **Scheduling untouched:** `getHabitStats` only `SELECT`s `revlog`; the widget only reads/writes
+  `localStorage`. Nothing writes card/FSRS state or touches the gate — zero scheduling impact by
+  construction.
+- **No fabricated facts:** no Chinese-language facts are involved at all (just review timestamps).
+
+**Result:** Home shows a streak + daily-goal ring + reminder. Build + **56 tests** (6 new) green.
+
+**Risk/tradeoff:** the reminder is an in-app nudge (fires when the app is opened past the set time) —
+true OS-scheduled push when the app is closed would need a push service (web-push + SW), deferred.
+Goal/reminder are per-device (localStorage), not synced.
+
+# ===================== PASS 2 — SUMMARY (pedagogy) =====================
+
+All six targets on `feat/pedagogy-pass` (branched off the deployed `master` incl. Pass 1), one
+commit each, build green throughout, **test count 33 → 56**. Every target proved gating-safe and
+fabrication-free.
+
+| Target | Feature | New logic tests | Gating/no-fab |
+|---|---|---|---|
+| P1 | Comprehensible-input "For you" (i+1) reader band + per-line audio | `recommend` (4) | ranks/plays sourced passages only; taps still gated |
+| P2 | HVPT tone-perception drills on `/tones` | (uses tested `syllable`) | taught vocab + Stage-0 examples; tones from CC-CEDICT |
+| P3 | Interference-aware scheduling + confusion-pair flag | `interference` (10) | `chosen ⊆ gated frontier`; similarity from component graph |
+| P4 | Character handwriting-recall card | — (UI over existing cards) | reveals only the card's own sourced facts |
+| P5 | FSRS personalization (per-user weights plumbing + seam) | `optimize` (6) + fsrs weights (1) | scheduling params only; no invented weights |
+| P6 | Habit scaffolding (goal/streak/reminder) | `habit` (6) | read-only over revlog; no scheduling impact |
+
+**Test coverage added in Pass 2:** 27 new unit tests (43 → 56 total at the file level after dedup),
+concentrated on the gating/scheduling-adjacent logic (`recommend`, `interference`, `optimize`,
+`fsrs` weights, `habit`).
+
+**Migrations to apply before deploying `feat/pedagogy-pass`:** `0005_fsrs_params.sql` (P5). No other
+schema changes. **Two follow-ups offered, not built:** a real FSRS optimizer to activate P5's seam,
+and a graded contrast *drill* consuming P3's `getConfusionPairs`.
