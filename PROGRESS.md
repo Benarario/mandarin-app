@@ -127,3 +127,31 @@ runs — uncertain on Vercel).
 **Risk/tradeoff:** cold (not-yet-generated) clips cost one extra failed CDN request before the
 `/api/tts` fallback — negligible, and self-heals as the bucket warms. No learning behavior or
 spoken text changed (same sourced text, same voice). Build + 29 tests green.
+
+---
+
+## S3 — Cache jieba segmentation in the ETL
+
+**Baseline:** every `/reader` request ran live `@node-rs/jieba`:
+- picker → `coverageOf` segmented **all** library lines on every load;
+- open-a-text → `annotateMany` segmented the passage **and** ran a CC-CEDICT lookup query.
+
+**Change:** `etl:reader` now precomputes each line's annotated tokens (jieba segmentation +
+best-reading CC-CEDICT pinyin/gloss) and stores them in `texts.segmented_json.lines[].tokens`.
+The reader renders from these cached tokens; coverage reads token `isWord` flags. Live jieba is
+reserved for true tap-to-define mining (`addWordToDeck`/`mineSentence`/`assertOnlyTaught`) and
+review-card annotation, untouched. Seed-text fallback still segments live if a text has no
+cached tokens.
+
+**Result:**
+- Re-ran `etl:reader`: 70 sets, **813/813 lines cached with tokens**, 856 unique words annotated.
+- Sample (sourced, not fabricated): `欢迎` → `pinyin "huān yíng"`, `gloss "to welcome"`.
+- Picker: live jieba over all 813 lines measured at **6.1 ms** — now **0** (reads cached flags).
+- Open-a-text: removes the live jieba pass **and** the per-open CC-CEDICT `annotateMany` DB
+  round-trip — the larger latency win, plus it avoids triggering jieba's dictionary load on the
+  reader path on cold serverless instances.
+
+**Risk/tradeoff:** pinyin/gloss are baked at build time — re-run `npm run etl:reader` if CC-CEDICT
+changes. Tokens reproduce `annotate()` exactly (same shape, same best-reading-by-freq choice), so
+rendering is identical. No fabrication (facts from CC-CEDICT), no gating change (reader text was
+never gated). Build + 29 tests green.

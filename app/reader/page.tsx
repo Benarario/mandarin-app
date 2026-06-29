@@ -9,20 +9,28 @@ import { SEED_TEXTS, getSeedText } from "@/lib/seed/reader";
 import { getGlobalReaderTexts, getReaderText, type ReaderText } from "@/lib/reader/texts";
 import { isHan } from "@/lib/pinyin/fading";
 import { timed, timedSync } from "@/lib/perf/timing";
+import type { AnnToken } from "@/lib/annotate";
 import ReaderView from "@/components/ReaderView";
 
 export const dynamic = "force-dynamic";
 
+/** Tokens for each line: cached (from etl:reader) when present, else live jieba. */
+function linesTokensOf(t: ReaderText): AnnToken[][] {
+  const cached = t.lines.every((l) => l.tokens && l.tokens.length > 0);
+  if (cached) return t.lines.map((l) => l.tokens!);
+  return t.lines.map((l) => segment(l.zh).map((s) => ({ text: s.text, isWord: s.isWord })));
+}
+
 /** Known-token % of a text for this learner (familiar = status ≥ 4). */
-function coverageOf(
-  zhLines: string[],
+function coverageFromTokens(
+  linesTokens: AnnToken[][],
   char: Record<string, number>,
   word: Record<string, number>,
 ): number {
   let known = 0,
     total = 0;
-  for (const line of zhLines) {
-    for (const t of segment(line)) {
+  for (const toks of linesTokens) {
+    for (const t of toks) {
       if (!t.isWord || ![...t.text].some(isHan)) continue;
       total++;
       const s =
@@ -51,11 +59,11 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
 
   // ── No text chosen → the picker (spec §13) ──
   if (!id) {
-    const items = timedSync("reader.coverage(jieba)", () =>
+    const items = timedSync("reader.coverage(cached tokens)", () =>
       library
         .map((t) => ({
           t,
-          coverage: coverageOf(t.lines.map((l) => l.zh), status.char, status.word),
+          coverage: coverageFromTokens(linesTokensOf(t), status.char, status.word),
         }))
         .sort((a, b) => b.coverage - a.coverage),
     );
@@ -96,9 +104,12 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
   }
 
   // ── A text is chosen → the reader ──
-  const text = (await getReaderText(supabase, id)) ?? getSeedText(id) ?? library[0] ?? SEED_TEXTS[0];
+  const text: ReaderText = (await getReaderText(supabase, id)) ?? getSeedText(id) ?? library[0] ?? SEED_TEXTS[0];
+  const cached = text.lines.length > 0 && text.lines.every((l) => l.tokens && l.tokens.length > 0);
   const [lines, settingsRow] = await Promise.all([
-    timed("reader.annotate(jieba+dict)", () => annotateMany(text.lines.map((l) => l.zh))),
+    cached
+      ? Promise.resolve(text.lines.map((l) => l.tokens!))
+      : timed("reader.annotate(jieba+dict)", () => annotateMany(text.lines.map((l) => l.zh))),
     supabase.from("user_settings").select("pinyin_mode").eq("user_id", user.id).maybeSingle(),
   ]);
 

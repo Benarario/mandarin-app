@@ -1,5 +1,6 @@
 import "server-only";
 import type { ActionDb } from "@/lib/require-user";
+import type { AnnToken } from "@/lib/annotate";
 
 // Global graded reader texts live in the `texts` table (owner = null,
 // type = 'reader'), assembled by scripts/etl/build-reader.ts from real Tatoeba
@@ -9,6 +10,7 @@ import type { ActionDb } from "@/lib/require-user";
 export interface ReaderLine {
   zh: string;
   en: string;
+  tokens?: AnnToken[]; // precomputed by etl:reader (segmentation + pinyin/gloss)
 }
 
 export interface ReaderText {

@@ -21,6 +21,9 @@ const supabase = createClient(
 const jieba = Jieba.withDict(dict);
 const HAN = /\p{Script=Han}/u;
 const hanWords = (text: string) => jieba.cut(text, false).filter((t) => HAN.test(t));
+// Full segmentation (words + punctuation in order) — cached so the reader never
+// runs jieba live for a passage. Matches lib/annotate.ts AnnToken shape.
+const tokenize = (text: string) => jieba.cut(text, false).map((t) => ({ text: t, isWord: HAN.test(t) }));
 
 const MAX_LEVEL = 6; // build beginner→intermediate sets (HSK 1–6)
 const LINES_PER_SET = 12;
@@ -100,27 +103,71 @@ async function main() {
     b.lines.push({ zh: s.zh_text, en: s.en_text });
   }
 
-  // Assemble one reading set per non-trivial bucket (shortest sentences first).
-  const rows: Record<string, unknown>[] = [];
+  // Pick one reading set per non-trivial bucket (shortest sentences first).
+  const sets: { level: number; topic: typeof GENERAL; lines: Line[] }[] = [];
   for (const b of buckets.values()) {
     if (b.lines.length < MIN_LINES) continue;
-    const lines = [...b.lines].sort((x, y) => [...x.zh].length - [...y.zh].length).slice(0, LINES_PER_SET);
-    rows.push({
+    sets.push({
+      level: b.level,
+      topic: b.topic,
+      lines: [...b.lines].sort((x, y) => [...x.zh].length - [...y.zh].length).slice(0, LINES_PER_SET),
+    });
+  }
+
+  // Precompute annotation (jieba segmentation + CC-CEDICT pinyin/gloss) once, so
+  // the reader serves cached tokens and never runs jieba/dict live for passages.
+  const tokenized = new Map<string, { text: string; isWord: boolean }[]>();
+  const words = new Set<string>();
+  for (const s of sets)
+    for (const l of s.lines)
+      if (!tokenized.has(l.zh)) {
+        const toks = tokenize(l.zh);
+        tokenized.set(l.zh, toks);
+        for (const t of toks) if (t.isWord) words.add(t.text);
+      }
+
+  const best = new Map<string, { pinyin: string | null; gloss?: string; rank: number }>();
+  const wordList = [...words];
+  for (let i = 0; i < wordList.length; i += 400) {
+    const { data } = await supabase
+      .from("dictionary")
+      .select("simplified, pinyin, glosses, freq_rank")
+      .in("simplified", wordList.slice(i, i + 400));
+    for (const d of (data ?? []) as { simplified: string; pinyin: string | null; glosses: string[] | null; freq_rank: number | null }[]) {
+      const rank = d.freq_rank ?? Number.MAX_SAFE_INTEGER;
+      const ex = best.get(d.simplified);
+      if (!ex || rank < ex.rank) best.set(d.simplified, { pinyin: d.pinyin, gloss: d.glosses?.[0], rank });
+    }
+  }
+
+  const annotate = (zh: string) =>
+    tokenized.get(zh)!.map((t) => {
+      if (!t.isWord) return { text: t.text, isWord: false };
+      const b = best.get(t.text);
+      const tok: { text: string; isWord: true; pinyin?: string; gloss?: string } = { text: t.text, isWord: true };
+      if (b?.pinyin) tok.pinyin = b.pinyin;
+      if (b?.gloss) tok.gloss = b.gloss;
+      return tok;
+    });
+
+  const rows: Record<string, unknown>[] = sets.map((s) => {
+    const lines = s.lines.map((l) => ({ zh: l.zh, en: l.en, tokens: annotate(l.zh) }));
+    return {
       owner: null,
-      title: `${b.topic.icon} ${b.topic.name} · HSK ${b.level}`,
+      title: `${s.topic.icon} ${s.topic.name} · HSK ${s.level}`,
       type: "reader",
-      language_level: `HSK ${b.level}`,
+      language_level: `HSK ${s.level}`,
       source_url: "https://tatoeba.org/",
       license,
       full_text: lines.map((l) => l.zh).join("\n"),
-      segmented_json: { lines, topic: b.topic.name, level: b.level },
-    });
-  }
+      segmented_json: { lines, topic: s.topic.name, level: s.level },
+    };
+  });
   rows.sort((a, b) =>
     String(a.language_level).localeCompare(String(b.language_level)) ||
     String(a.title).localeCompare(String(b.title)),
   );
-  console.log(`Built ${rows.length} graded reader sets.`);
+  console.log(`Built ${rows.length} graded reader sets (annotated ${words.size} unique words).`);
 
   // Replace the existing global reader seeds (idempotent re-runs).
   console.log("Clearing old global reader texts …");
