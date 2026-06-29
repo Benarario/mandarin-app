@@ -152,6 +152,10 @@ export default function ReaderView({
                 onWordTap={(w) => openWord(w, i)}
                 colorFor={colorFor}
               />
+              <AudioButton
+                text={tokens.map((t) => t.text).join("")}
+                className="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-full align-middle text-base text-teal-600 hover:bg-teal-50"
+              />
               <button
                 onClick={async () => {
                   const zh = tokens.map((t) => t.text).join("");
@@ -159,7 +163,7 @@ export default function ReaderView({
                   setMsg(r.stretch ? "Added as a stretch card ✓" : "Sentence added to deck ✓");
                 }}
                 title="Add this sentence to my deck"
-                className="ml-2 align-middle text-sm text-stone-300 hover:text-orange-500"
+                className="ml-1 align-middle text-sm text-stone-300 hover:text-orange-500"
               >
                 ＋
               </button>

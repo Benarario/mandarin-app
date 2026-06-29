@@ -256,3 +256,38 @@ All six targets landed on `perf/speed-pass`, one commit each, build + 29 tests g
 **To re-confirm on-device (reviewer):** deploy `perf/speed-pass` and re-run Lighthouse — expect
 `/dashboard` TBT to drop materially (S1) and faster tap-to-define (S5). Optionally warm more audio
 with `TTS_LIMIT=2000 npm run tts:pregen`.
+
+Speed pass merged to `master` and deployed to production before starting Pass 2.
+
+# ===================== PASS 2 — PEDAGOGY =====================
+
+## P1 — Comprehensible-input layer (i+1 reading + audio)
+
+**Goal:** surface graded passages at ~70–80% known-word coverage (the comprehensible-input
+sweet spot) using the learner's gate-derived vocabulary, with audio. Existing sourced passages
+only — no new Chinese facts.
+
+**Change:**
+- `lib/reader/recommend.ts` (pure, tested): `recommendForYou(scored, band)` picks passages with
+  coverage in `[60, 90]` ranked by closeness to ideal 78, falling back to the easiest few for a
+  near-beginner. 4 unit tests (`recommend.test.ts`).
+- `app/reader/page.tsx`: picker now shows a **"For you"** section (the i+1 picks) above **"All
+  texts"**. Coverage is computed from cached tokens (S3) against the gate's mastered vocab
+  (`status ≥ 4`) — no live jieba.
+- `components/ReaderView.tsx`: a **per-line audio** button (🔊) speaking the line's sourced text,
+  via the S2 CDN-first `AudioButton` (cold sentences fall back to `/api/tts`, then self-warm).
+
+**Gating + no-fabrication proof:**
+- **No untaught-token leak:** P1 neither quizzes nor creates cards. It only *ranks* existing
+  passages by coverage and *plays* their existing text. Word taps still flow through the existing
+  gated paths (`mineSentence` runs `assertOnlyTaught` and tags out-of-vocabulary sentences
+  `stretch`). The reader is extensive-reading *input* (unknown words are expected and tappable,
+  by design) — nothing here surfaces a concept as taught/quizzed before its prerequisites.
+- **No fabricated facts:** passages are sourced Tatoeba sentences; audio is TTS of that exact
+  text; coverage uses gate status. `recommendForYou` introduces zero Chinese facts.
+
+**Result:** the reader leads with level-matched passages instead of a flat coverage sort; each
+line is listenable. Build + **33 tests** (4 new) green.
+
+**Risk/tradeoff:** sentence audio isn't pre-warmed (S2 warmed words/chars), so the first play of a
+given line synthesizes via `/api/tts` then caches to the CDN — one slow first tap per sentence.
