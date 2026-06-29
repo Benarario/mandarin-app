@@ -360,3 +360,35 @@ fewer than `budget` new concepts (the deferred ones come next session) — inten
 confusability isn't implemented (no fabrication-free semantic source); visual (component-graph)
 similarity is the signal, per the spec. Contrast practice is currently a compare-and-listen strip;
 a graded contrast *drill* could consume `getConfusionPairs` later if wanted.
+
+## P4 — Character production / handwriting recall
+
+**Goal:** a recall card that prompts *production* of a character (write it from memory) with a
+stroke/composition reveal. The retrieval attempt is the point; grading optional.
+
+**Change:** upgraded the existing **character production card** (template 1, the "writing"
+modality already in the deck) in `components/ConceptReview.tsx`:
+- **Cue (front):** meaning + pinyin + 🔊 audio (not the character) and a prompt to write it.
+- **Attempt:** `components/DrawCanvas.tsx` — a finger/mouse scratch pad with 米字格 guide lines,
+  reset per card (`key={cardId}`). Purely a retrieval aid; nothing stored or graded.
+- **Reveal:** the character (large) + its **component breakdown** ("Built from: 女 + 子") as the
+  composition/writing scaffold + audio. Existing FSRS rating buttons remain (grading optional —
+  the learner self-assesses their attempt).
+
+Scoped to the `isWriting = isProduction && conceptType === "character"` branch only; word
+production and all recognition cards are unchanged.
+
+**Gating + no-fabrication proof:**
+- **No untaught-token leak:** no new cards; the card reveals only its *own* character (already a
+  taught/being-introduced concept) and that character's sourced component breakdown. Same gated
+  pipeline, same scheduling — the change is purely the prompt/reveal UI.
+- **No fabricated facts:** character, pinyin, gloss and breakdown all come from existing sourced
+  note fields (CC-CEDICT / cjk-decomp). **No stroke-order data was invented** — the "stroke
+  reveal" is the real glyph + component decomposition, not a fabricated stroke sequence. The
+  canvas is just user ink.
+
+**Result:** writing-modality reviews are now genuine handwriting recall. Build + 43 tests green.
+
+**Risk/tradeoff:** without a licensed stroke-order dataset there's no animated stroke guidance —
+the reveal shows the glyph + component breakdown instead. Adding animated stroke order would
+require importing a permissively-licensed dataset (e.g. Make-Me-a-Hanzi) — a separate decision.

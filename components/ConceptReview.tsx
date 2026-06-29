@@ -9,6 +9,7 @@ import type { ConceptReviewItem } from "@/lib/db/concept-types";
 import PinyinText from "@/components/PinyinText";
 import AudioButton from "@/components/AudioButton";
 import ImageCard from "@/components/ImageCard";
+import DrawCanvas from "@/components/DrawCanvas";
 import { visualFor } from "@/lib/visuals/emoji";
 
 const BUTTONS: { rating: RatingValue; label: string; cls: string }[] = [
@@ -73,6 +74,9 @@ export default function ConceptReview({
   const chineseText = item.templateIndex === 0 ? item.front : item.back;
   const isProduction = item.templateIndex === 1;
   const isPhoneme = item.conceptType === "phoneme";
+  // Handwriting recall: produce a character from its meaning/sound, then reveal
+  // the form + how it's built. The attempt is the point; the rating is optional.
+  const isWriting = isProduction && item.conceptType === "character";
 
   return (
     <main className="mx-auto flex max-w-xl flex-col px-6 py-6">
@@ -130,6 +134,16 @@ export default function ConceptReview({
               </div>
             )}
           </div>
+        ) : isWriting ? (
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-xl font-medium text-stone-800">{item.front}</p>
+            <div className="flex items-center gap-2 text-sm">
+              {item.pinyin && <span className="font-medium text-teal-700">{item.pinyin}</span>}
+              {item.audioText && <AudioButton text={item.audioText} />}
+            </div>
+            <p className="text-xs text-stone-400">✍️ Write the character from memory, then reveal.</p>
+            <DrawCanvas key={item.cardId} />
+          </div>
         ) : isProduction ? (
           <p className="text-2xl font-medium text-stone-800">{item.front}</p>
         ) : (
@@ -153,6 +167,19 @@ export default function ConceptReview({
               </div>
             ) : (
               <p className="text-lg text-stone-700">{item.back}</p>
+            )}
+            {isWriting && item.breakdown && item.breakdown.length > 0 && (
+              <div className="mt-3 text-sm text-stone-500">
+                <span className="font-medium text-stone-600">Built from:</span>{" "}
+                {item.breakdown.map((p, i) => (
+                  <span key={i}>
+                    {i > 0 && " + "}
+                    {visualFor(p.text) && <span className="mr-0.5">{visualFor(p.text)}</span>}
+                    <span className="font-semibold text-stone-700">{p.text}</span>
+                    {p.gloss ? ` (${p.gloss})` : ""}
+                  </span>
+                ))}
+              </div>
             )}
             {(item.pinyin || item.gloss) && (
               <div className="mt-3 text-sm text-stone-500">
