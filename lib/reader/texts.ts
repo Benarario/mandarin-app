@@ -77,3 +77,21 @@ export async function getReaderText(supabase: ActionDb, id: string): Promise<Rea
   const { data } = await supabase.from("texts").select(COLS).eq("id", id).maybeSingle();
   return data ? toReaderText(data as TextRow) : null;
 }
+
+/** Chapter ids of a series (same type + book title), in reading order. RLS keeps
+ *  this to the learner's own + global rows, so a user book and the PD corpus
+ *  never bleed together for different users. */
+export async function getSeriesSiblings(
+  supabase: ActionDb,
+  type: string,
+  series: string,
+): Promise<{ id: string; seq: number }[]> {
+  const { data } = await supabase
+    .from("texts")
+    .select("id, segmented_json")
+    .eq("type", type)
+    .eq("segmented_json->>topic", series);
+  return ((data ?? []) as { id: string; segmented_json: { level?: number } | null }[])
+    .map((r) => ({ id: r.id, seq: typeof r.segmented_json?.level === "number" ? r.segmented_json.level : 0 }))
+    .sort((a, b) => a.seq - b.seq);
+}

@@ -11,6 +11,12 @@ import type { AnnToken } from "@/lib/annotate";
 import type { DictionaryRow } from "@/lib/db/types";
 import type { PinyinMode } from "@/lib/pinyin/fading";
 
+interface ChapterNav {
+  position: { n: number; total: number };
+  prevHref?: string;
+  nextHref?: string;
+}
+
 export default function ReaderView({
   title,
   level,
@@ -20,6 +26,7 @@ export default function ReaderView({
   charStatus,
   wordStatus,
   pinyinMode,
+  nav,
 }: {
   title: string;
   level: string;
@@ -29,6 +36,7 @@ export default function ReaderView({
   charStatus: Record<string, number>;
   wordStatus: Record<string, number>;
   pinyinMode: string;
+  nav?: ChapterNav;
 }) {
   const mode = pinyinMode as PinyinMode;
   const [bilingual, setBilingual] = useState(true);
@@ -121,6 +129,8 @@ export default function ReaderView({
         <p className="text-xs font-medium text-stone-500">{level} · tap any word</p>
       </header>
 
+      {nav && <ChapterNavRow nav={nav} />}
+
       {/* coverage + mode toggle */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600">
@@ -181,6 +191,9 @@ export default function ReaderView({
         <span className="text-emerald-700">● strong</span>
       </div>
       <p className="mt-2 text-xs text-stone-400">Source: {license}</p>
+
+      {nav && <div className="mt-6"><ChapterNavRow nav={nav} /></div>}
+
       {msg && <p className="mt-2 text-center text-sm text-teal-700">{msg}</p>}
 
       {/* definition sheet */}
@@ -273,5 +286,26 @@ export default function ReaderView({
         </div>
       )}
     </main>
+  );
+}
+
+function ChapterNavRow({ nav }: { nav: ChapterNav }) {
+  const base = "rounded-xl border border-stone-300 px-3 py-2 text-sm font-medium";
+  return (
+    <div className="flex items-center justify-between gap-2">
+      {nav.prevHref ? (
+        <a href={nav.prevHref} className={`${base} text-stone-600 hover:bg-stone-50`}>← Previous</a>
+      ) : (
+        <span className={`${base} text-stone-300`}>← Previous</span>
+      )}
+      <span className="text-xs font-medium text-stone-500">
+        {nav.position.n} / {nav.position.total}
+      </span>
+      {nav.nextHref ? (
+        <a href={nav.nextHref} className={`${base} text-stone-600 hover:bg-stone-50`}>Next →</a>
+      ) : (
+        <span className={`${base} text-stone-300`}>Next →</span>
+      )}
+    </div>
   );
 }

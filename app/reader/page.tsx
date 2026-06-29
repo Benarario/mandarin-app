@@ -6,7 +6,7 @@ import { annotateMany } from "@/lib/annotate";
 import { segment } from "@/lib/segment/jieba";
 import { getStatusMaps } from "@/lib/graph/mastery";
 import { SEED_TEXTS, getSeedText } from "@/lib/seed/reader";
-import { getGlobalReaderTexts, getUserTexts, getReaderText, SERIES_TYPES, type ReaderText } from "@/lib/reader/texts";
+import { getGlobalReaderTexts, getUserTexts, getReaderText, getSeriesSiblings, SERIES_TYPES, type ReaderText } from "@/lib/reader/texts";
 import { recommendForYou } from "@/lib/reader/recommend";
 import { isHan } from "@/lib/pinyin/fading";
 import { timed, timedSync } from "@/lib/perf/timing";
@@ -140,12 +140,25 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
   // ── A text is chosen → the reader ──
   const text: ReaderText = (await getReaderText(supabase, id)) ?? getSeedText(id) ?? library[0] ?? SEED_TEXTS[0];
   const cached = text.lines.length > 0 && text.lines.every((l) => l.tokens && l.tokens.length > 0);
-  const [lines, settingsRow] = await Promise.all([
+  const isSeries = !!text.type && SERIES_TYPES.has(text.type) && !!text.topic;
+  const [lines, settingsRow, siblings] = await Promise.all([
     cached
       ? Promise.resolve(text.lines.map((l) => l.tokens!))
       : timed("reader.annotate(jieba+dict)", () => annotateMany(text.lines.map((l) => l.zh))),
     supabase.from("user_settings").select("pinyin_mode").eq("user_id", user.id).maybeSingle(),
+    isSeries ? getSeriesSiblings(supabase, text.type!, text.topic) : Promise.resolve([]),
   ]);
+
+  // Prev/next within a series so a book reads chapter to chapter.
+  const idx = siblings.findIndex((s) => s.id === text.id);
+  const nav =
+    idx >= 0 && siblings.length > 1
+      ? {
+          position: { n: idx + 1, total: siblings.length },
+          prevHref: idx > 0 ? `/reader?id=${siblings[idx - 1].id}` : undefined,
+          nextHref: idx < siblings.length - 1 ? `/reader?id=${siblings[idx + 1].id}` : undefined,
+        }
+      : undefined;
 
   return (
     <ReaderView
@@ -157,6 +170,7 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
       charStatus={status.char}
       wordStatus={status.word}
       pinyinMode={settingsRow.data?.pinyin_mode ?? "adaptive"}
+      nav={nav}
     />
   );
 }
