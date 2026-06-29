@@ -207,3 +207,52 @@ possible follow-up, out of S4's scope. No learning behavior changed.
 
 **Risk/tradeoff:** edge has no Node APIs (none used). Response is unchanged (same authed query,
 same RLS, same `Cache-Control` + SW SWR caching). No learning behavior changed.
+
+---
+
+## S6 — Index for the new-cards gating query
+
+**Finding:** the three indexes the spec named **already existed** —
+`concept_progress(user_id, status)` (`0002:85`), `concepts(teaching_order)` (`0002:63`), and
+`cards(user_id, concept_id)` (`0003:9`, the correct composite shape since every query filters
+`user_id` first). So those would be no-ops. The one genuinely-missing index was for the
+**new-cards** query (`user_id` + `fsrs_state='new'`, ordered by `created_at`), which the existing
+`cards_user_due_idx (user_id, suspended, due_at)` doesn't serve.
+
+**Change:** `0004_card_newcards_index.sql` →
+`create index cards_user_state_created_idx on cards (user_id, fsrs_state, created_at)`.
+Applied manually in the SQL Editor; kept only after `EXPLAIN` confirmed it's used.
+
+**Result (EXPLAIN ANALYZE, reviewer-run):**
+
+| | Plan | Exec |
+|---|---|---|
+| Before | `Seq Scan` + `Sort (quicksort) Sort Key: created_at` | 0.404 ms |
+| After | `Index Scan using cards_user_state_created_idx`, `Index Cond (user_id, fsrs_state='new')`, **no sort** | 0.223 ms |
+
+The planner chose the index unaided (no `enable_seqscan` coercion), and it **removed the explicit
+sort** — exactly the intended win, and it scales with deck size. **Kept.**
+
+**Risk/tradeoff:** one more index to maintain on writes — negligible. Purely a read-path
+optimization; no behavior change. Build + 29 tests green.
+
+---
+
+## Pass 1 — Summary (speed)
+
+All six targets landed on `perf/speed-pass`, one commit each, build + 29 tests green throughout,
+**no learning behavior changed**.
+
+| Target | Win |
+|---|---|
+| T0 | Baseline: 454.4 KB gz total client JS; Lighthouse mobile (dashboard TBT 360 ms worst); timing + analyzer tooling. |
+| S1 | Recharts (99.5 KB gz) removed from `/dashboard` initial JS → lazy chunk; targets the 360 ms TBT. |
+| S2 | Review audio served from Supabase Storage CDN (154 clips warmed); first-tap synthesis eliminated for warmed clips. |
+| S3 | Reader passages render from ETL-cached tokens → 0 live jieba + 0 dict round-trip on the passage path (was ~6 ms jieba + a DB query). |
+| S4 | SW pre-caches Review/Reader/Dashboard shells; DICT/AUDIO caches LRU-capped (300/150) — bounded storage. |
+| S5 | `/api/dict` on the edge; Supabase preconnect/dns-prefetch. |
+| S6 | New-cards gating query: `Seq Scan + Sort` → `Index Scan`, sort eliminated (EXPLAIN-verified). |
+
+**To re-confirm on-device (reviewer):** deploy `perf/speed-pass` and re-run Lighthouse — expect
+`/dashboard` TBT to drop materially (S1) and faster tap-to-define (S5). Optionally warm more audio
+with `TTS_LIMIT=2000 npm run tts:pregen`.
