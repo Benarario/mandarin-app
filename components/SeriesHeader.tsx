@@ -4,8 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteBook } from "@/app/actions/text-import";
 
-/** Picker heading for a book/series; offers removal for the learner's own imports. */
-export default function SeriesHeader({ series, deletable }: { series: string; deletable: boolean }) {
+/** Picker heading for a book/series: shows how many chapters are "comfortable"
+ *  (≥80% known) and offers removal for the learner's own imports. */
+export default function SeriesHeader({
+  series,
+  deletable,
+  comfortable,
+  total,
+}: {
+  series: string;
+  deletable: boolean;
+  comfortable?: number;
+  total?: number;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -29,13 +40,20 @@ export default function SeriesHeader({ series, deletable }: { series: string; de
   }
 
   return (
-    <div className="mb-2 flex items-center justify-between">
+    <div className="mb-2 flex items-center justify-between gap-2">
       <h2 className="text-sm font-semibold text-stone-700">📚 {series}</h2>
-      {deletable && (
-        <button onClick={remove} disabled={busy} className="text-xs text-stone-400 hover:text-red-500 disabled:opacity-50">
-          {busy ? "removing…" : "remove"}
-        </button>
-      )}
+      <div className="flex items-center gap-2">
+        {typeof total === "number" && total > 0 && (
+          <span className="text-xs text-stone-400">
+            {comfortable ?? 0}/{total} comfortable
+          </span>
+        )}
+        {deletable && (
+          <button onClick={remove} disabled={busy} className="text-xs text-stone-400 hover:text-red-500 disabled:opacity-50">
+            {busy ? "removing…" : "remove"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

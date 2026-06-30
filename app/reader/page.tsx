@@ -83,6 +83,17 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
     // Long-form texts (novels / imports) group by series/book; everything else
     // (Tatoeba sets) lists individually under "All texts".
     const standalone = rest.filter((s) => !SERIES_TYPES.has(s.t.type ?? ""));
+    // Per-book "comfortable" stats over ALL the book's chapters (incl. ones
+    // surfaced in "For you"), so the count reflects the whole book.
+    const seriesStats = new Map<string, { comfortable: number; total: number }>();
+    for (const s of scored) {
+      if (!SERIES_TYPES.has(s.t.type ?? "")) continue;
+      const key = s.t.topic || s.t.title;
+      const st = seriesStats.get(key) ?? { comfortable: 0, total: 0 };
+      st.total++;
+      if (s.coverage >= 80) st.comfortable++;
+      seriesStats.set(key, st);
+    }
     const seriesMap = new Map<string, typeof rest>();
     for (const s of rest) {
       if (!SERIES_TYPES.has(s.t.type ?? "")) continue;
@@ -118,7 +129,12 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
 
         {[...seriesMap.entries()].map(([series, chapters]) => (
           <section key={series} className="mt-6">
-            <SeriesHeader series={series} deletable={chapters[0].t.type === "user"} />
+            <SeriesHeader
+              series={series}
+              deletable={chapters[0].t.type === "user"}
+              comfortable={seriesStats.get(series)?.comfortable}
+              total={seriesStats.get(series)?.total}
+            />
             <div className="space-y-3">
               {chapters.map(({ t, coverage }) => (
                 <TextCard key={t.id} t={t} coverage={coverage} label={chapterLabel(t)} />
