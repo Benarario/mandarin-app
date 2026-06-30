@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PinyinText from "@/components/PinyinText";
 import AudioButton from "@/components/AudioButton";
 import ImageCard from "@/components/ImageCard";
@@ -17,6 +17,14 @@ interface ChapterNav {
   nextHref?: string;
 }
 
+export interface ResumeInfo {
+  series: string;
+  id: string;
+  label: string;
+  n: number;
+  total: number;
+}
+
 export default function ReaderView({
   title,
   level,
@@ -27,6 +35,7 @@ export default function ReaderView({
   wordStatus,
   pinyinMode,
   nav,
+  resume,
 }: {
   title: string;
   level: string;
@@ -37,6 +46,7 @@ export default function ReaderView({
   wordStatus: Record<string, number>;
   pinyinMode: string;
   nav?: ChapterNav;
+  resume?: ResumeInfo;
 }) {
   const mode = pinyinMode as PinyinMode;
   const [bilingual, setBilingual] = useState(true);
@@ -46,6 +56,19 @@ export default function ReaderView({
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [bump, setBump] = useState(0); // re-render after status changes
+
+  // Remember where you are in a book, so the picker can offer "Continue reading".
+  useEffect(() => {
+    if (!resume) return;
+    try {
+      const all = JSON.parse(localStorage.getItem("reader.progress") || "{}");
+      all[resume.series] = { id: resume.id, label: resume.label, n: resume.n, total: resume.total, ts: Date.now() };
+      localStorage.setItem("reader.progress", JSON.stringify(all));
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resume?.id]);
   const [grading, setGrading] = useState(false); // graded "I know this" picker open?
 
   // Status of a token: word status if known, else derived from its characters.

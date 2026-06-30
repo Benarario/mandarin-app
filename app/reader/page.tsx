@@ -12,6 +12,7 @@ import { isHan } from "@/lib/pinyin/fading";
 import { timed, timedSync } from "@/lib/perf/timing";
 import type { AnnToken } from "@/lib/annotate";
 import ReaderView from "@/components/ReaderView";
+import ContinueReading from "@/components/ContinueReading";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,8 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
           The percentage is how much of each text you can already read.
         </p>
 
+        <ContinueReading />
+
         {forYou.length > 0 && (
           <section className="mt-6">
             <h2 className="text-sm font-semibold text-stone-700">For you</h2>
@@ -160,6 +163,13 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
         }
       : undefined;
 
+  // Record progress so the picker can offer "Continue reading" this book.
+  const chapterLabel = text.title.includes(" · ") ? text.title.split(" · ").slice(1).join(" · ") : text.title;
+  const resume =
+    isSeries && nav
+      ? { series: text.topic, id: text.id, label: chapterLabel, n: nav.position.n, total: nav.position.total }
+      : undefined;
+
   return (
     <ReaderView
       title={text.title}
@@ -171,6 +181,7 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
       wordStatus={status.word}
       pinyinMode={settingsRow.data?.pinyin_mode ?? "adaptive"}
       nav={nav}
+      resume={resume}
     />
   );
 }
