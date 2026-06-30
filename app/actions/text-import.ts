@@ -88,3 +88,19 @@ export async function importChapters(
   const batch = chapters.slice(0, CHAPTERS_PER_CALL); // guard payload size
   return storeChapters(supabase, user.id, bookTitle, batch, startIndex);
 }
+
+/** Remove one of the learner's own imported books (all its chapters). RLS +
+ *  the owner filter ensure a user can only ever delete their own texts. */
+export async function deleteBook(series: string): Promise<{ deleted: number }> {
+  const { supabase, user } = await requireUser();
+  if (!series) return { deleted: 0 };
+  const { data, error } = await supabase
+    .from("texts")
+    .delete()
+    .eq("owner", user.id)
+    .eq("type", "user")
+    .eq("segmented_json->>topic", series)
+    .select("id");
+  if (error) return { deleted: 0 };
+  return { deleted: (data ?? []).length };
+}

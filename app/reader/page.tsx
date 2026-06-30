@@ -13,6 +13,7 @@ import { timed, timedSync } from "@/lib/perf/timing";
 import type { AnnToken } from "@/lib/annotate";
 import ReaderView from "@/components/ReaderView";
 import ContinueReading from "@/components/ContinueReading";
+import SeriesHeader from "@/components/SeriesHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -117,7 +118,7 @@ export default async function ReaderPage({ searchParams }: PageProps<"/reader">)
 
         {[...seriesMap.entries()].map(([series, chapters]) => (
           <section key={series} className="mt-6">
-            <h2 className="mb-2 text-sm font-semibold text-stone-700">📚 {series}</h2>
+            <SeriesHeader series={series} deletable={chapters[0].t.type === "user"} />
             <div className="space-y-3">
               {chapters.map(({ t, coverage }) => (
                 <TextCard key={t.id} t={t} coverage={coverage} label={chapterLabel(t)} />
