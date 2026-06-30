@@ -3,7 +3,7 @@
  * Provides offline support for the app shell, dictionary lookups and audio,
  * which is what makes reviews usable without a signal. */
 
-const VERSION = "v3";
+const VERSION = "v4";
 const SHELL_CACHE = `shell-${VERSION}`;
 const ASSET_CACHE = `assets-${VERSION}`;
 const DICT_CACHE = `dict-${VERSION}`;
@@ -79,6 +79,28 @@ async function cacheFirst(request, cacheName) {
   return res;
 }
 
+// Cross-origin pre-generated audio (Supabase Storage CDN). Cache-first so
+// review/reader audio works offline. Caches full 200s (Supabase sends CORS) and
+// opaque responses; skips 206 range partials so playback isn't corrupted.
+async function cacheFirstCdnAudio(request) {
+  const cache = await caches.open(AUDIO_CACHE);
+  const hit = await cache.match(request);
+  if (hit) {
+    await touch(cache, AUDIO_CACHE, request, hit);
+    return hit;
+  }
+  try {
+    const res = await fetch(request);
+    if (res && (res.status === 200 || res.type === "opaque")) {
+      await cache.put(request, res.clone());
+      await trim(cache, AUDIO_CACHE);
+    }
+    return res;
+  } catch {
+    return hit || Response.error();
+  }
+}
+
 async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(request);
@@ -110,7 +132,15 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return; // never cache POST/auth mutations
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return; // skip Supabase/Azure/cross-origin
+
+  // Pre-generated audio from the Supabase Storage CDN (cross-origin) — cache it
+  // so review/reader audio works offline, like same-origin /api/tts.
+  if (url.pathname.includes("/storage/v1/object/public/tts/")) {
+    event.respondWith(cacheFirstCdnAudio(request));
+    return;
+  }
+
+  if (url.origin !== self.location.origin) return; // skip other cross-origin
 
   // Dictionary lookups: instant from cache, refresh in the background.
   if (url.pathname.startsWith("/api/dict")) {
